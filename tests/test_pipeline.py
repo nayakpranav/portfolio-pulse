@@ -143,3 +143,20 @@ def test_ui_two_independent_sessions():
 def test_public_registry_empty():
     from security_events import KNOWN_WORTHLESS_DERECOGNITIONS
     assert KNOWN_WORTHLESS_DERECOGNITIONS==()
+
+def test_temporary_cleanup_retries_a_transient_lock(tmp_path,monkeypatch):
+    import tempfile
+    original=tempfile.TemporaryDirectory
+    calls=[]
+    def transient_directory(*args,**kwargs):
+        directory=original(*args,**kwargs,dir=tmp_path)
+        cleanup=directory.cleanup
+        def retryable_cleanup():
+            calls.append(True)
+            if len(calls)==1:raise PermissionError('Synthetic transient Windows file lock')
+            cleanup()
+        directory.cleanup=retryable_cleanup
+        return directory
+    monkeypatch.setattr(tempfile,'TemporaryDirectory',transient_directory)
+    data,prices=fixture('stocks');run_analysis(data,prices=prices)
+    assert len(calls)==2 and not list(tmp_path.iterdir())

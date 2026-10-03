@@ -10,6 +10,10 @@ def install_hooks(ns):
     ns['fetch_yahoo_security_metadata'] = lambda ticker: {}
     config = json.loads(Path(os.environ['PULSE_PRICE_INPUT']).read_text()) if os.environ.get('PULSE_PRICE_INPUT') else None
     if config:
+        def no_external_requests(*args,**kwargs):
+            raise RuntimeError('External market-data calls are disabled for synthetic input')
+        ns['yf'].Ticker = no_external_requests
+        ns['requests'].sessions.Session.request = no_external_requests
         securities = config['securities']
         def resolve(isin, security_name='', asset_class=''):
             return dict(ticker=isin,match_status='SYNTHETIC_CONTROLLED_INPUT',match_score=100,matched_name=security_name,

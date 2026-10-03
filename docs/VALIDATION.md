@@ -28,10 +28,14 @@
   check the demo's capital, recovery, profit and recognized income; reinvestment
   recognition/basis, covered zero versus uncovered income and missing-value handling
   are checked explicitly.
-- Final pinned-dependency suite: **30 passed**; dependency consistency check passed.
+- Final pinned-dependency suite: **31 passed**; dependency consistency check passed.
+  GitHub Actions also passed all 30 tests on Linux/Python 3.12 for the initial
+  public commit. Final commit status is reported separately in the handoff.
 - Concurrent worker processes produced distinct holdings, values and PDFs, with
   temporary directories cleaned. Two independent Streamlit sessions retained
   different benchmark results; clearing one preserved the other's result/PDF.
+  A transient Windows sync/indexing lock found in the final run is handled by
+  bounded cleanup retries; persistent cleanup failures are surfaced rather than ignored.
 - Local Chrome validation: eight metrics and three charts rendered at 1440px and
   390px. No page errors or horizontal overflow were observed. PDF downloads worked
   on desktop/mobile; periods, insights, holdings and session clearing were exercised.

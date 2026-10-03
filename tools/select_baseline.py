@@ -35,7 +35,7 @@ for name in ("portfolio_core.py", "automated_investing.py", "dividend_engine.py"
         text += '\nfrom worker_hooks import write_results\nwrite_results(globals())\n'
         changes += ["Old HTML/Excel/ZIP and rounded summary exports removed", "Metadata cache confined to worker temporary directory; private seed excluded", "Price injection and canonical result serialization hooks added"]
     (target / name).write_text(text, encoding="utf-8")
-    manifest["files"][name] = {"original_sha256": hashlib.sha256(original.encode()).hexdigest(),
+    manifest["files"][name] = {"original_sha256": hashlib.sha256((source / name).read_bytes()).hexdigest(),
         "selected_sha256": hashlib.sha256(text.encode()).hexdigest(), "changes": changes}
 (target / "PROVENANCE.json").write_text(json.dumps(manifest, indent=2)+"\n")
 print("Selected eight source modules; no artifacts, caches, notebooks or original history copied.")

@@ -2,6 +2,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import os
+import re
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -134,7 +135,9 @@ with holdings_col:
         st.caption('Closed and derecognized positions are excluded. Unpriced holdings are not assigned zero.')
 
 st.markdown('### What Stands Out?')
-for insight in model['insights']:st.write('• '+insight)
+for insight in model['insights']:
+    # Uploaded security names are data; prevent Markdown links/images from rendering.
+    st.markdown('• '+re.sub(r'([\\`*_{}\[\]()#+.!|<>])',r'\\\1',insight))
 with st.expander('Understanding Your Capital'):
     life=model['raw']['lifetime_metrics']
     for label,key in [('User-funded investment outflows','lifetime_user_funded_investment_outflows_eur'),('Gross acquisition outflows','lifetime_gross_investment_outflows_eur')]:

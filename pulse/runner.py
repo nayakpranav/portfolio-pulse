@@ -1,5 +1,6 @@
 """Session-isolated canonical engine execution. Private exceptions never reach the UI."""
 import csv
+from contextlib import contextmanager
 from io import StringIO
 import json
 import os
@@ -15,6 +16,23 @@ MAX_ROWS = 10000
 
 class AnalysisError(ValueError):
     pass
+
+@contextmanager
+def analysis_workspace():
+    directory=tempfile.TemporaryDirectory(prefix='portfolio-pulse-')
+    try:
+        yield Path(directory.name)
+    finally:
+        # Windows indexing/sync tools can briefly hold a just-closed directory.
+        # Retry cleanup; never ignore a persistent private-data cleanup failure.
+        for attempt in range(8):
+            try:
+                directory.cleanup()
+                break
+            except PermissionError:
+                if attempt==7:
+                    raise AnalysisError('Temporary data cleanup failed. The server operator must review temporary storage before accepting more uploads.') from None
+                time.sleep(min(.05*2**attempt,.5))
 
 def validate_upload(data):
     if not data or len(data) > MAX_BYTES:
@@ -46,8 +64,7 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=120, engine_
         raise AnalysisError('Choose one of the supported benchmarks or disable comparison.')
     validate_upload(data)
     started = time.perf_counter()
-    with tempfile.TemporaryDirectory(prefix='portfolio-pulse-') as folder:
-        work = Path(folder)
+    with analysis_workspace() as work:
         work.joinpath('input.csv').write_bytes(data)
         env = os.environ.copy()
         env.update(PULSE_RESULT_PATH=str(work/'result.json'),PYTHONIOENCODING='utf-8',
