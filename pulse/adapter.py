@@ -90,6 +90,9 @@ def prepare(result, report_date=None):
     missing = sum(r.get('valuation_status') == 'BLOCKING' for r in result['valuation_diagnostics'])
     if missing:
         issues.append(f'{missing} open position(s) lack a required reliable valuation.')
+        derivative_gaps=[r for r in result['valuation_diagnostics'] if r.get('valuation_status')=='BLOCKING' and r.get('instrument_type')=='DERIVATIVE']
+        if derivative_gaps:
+            issues.append('Tracked value and lifetime profit require derivative valuations: '+', '.join(str(r.get('security_name','Derivative')) for r in derivative_gaps[:3])+'.')
     valued_quotes=[r.get('quote_date') for r in result['valuation_diagnostics'] if r.get('valuation_status')=='VALUED']
     parsed_quotes=pd.to_datetime(valued_quotes,errors='coerce',utc=True)
     if len(parsed_quotes) and parsed_quotes.isna().any():
@@ -102,6 +105,12 @@ def prepare(result, report_date=None):
         issues.append('Historical returns include transaction or filled-price estimates; interpret with caution.')
     if result['benchmark_enabled'] and by_key['benchmark'].value is None:
         issues.append(f'{benchmark_label}: comparison unavailable; reliable adjusted prices, currency/FX and matched-date coverage are required.')
+    if result.get('benchmark_identity',{}).get('warning'):
+        issues.append(result['benchmark_identity']['warning'])
+    if result.get('provider_diagnostics',{}).get('restricted_providers'):
+        issues.append('A market-data provider denied or rate-limited requests. Further requests to that provider were stopped; missing inputs remain unavailable.')
+    if any(r.get('quote_status')=='MANUAL_CONFIRMED' for r in result.get('active_derivatives',[])):
+        issues.append('Explicit dated manual derivative valuations are used. Their source/date is user-confirmed; a captured observation date is not necessarily an exchange quote timestamp.')
     if income_blocked:
         issues.append('Recognized income contains an unresolved amount or reconciliation issue.')
     if blocked:

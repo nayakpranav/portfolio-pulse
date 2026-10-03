@@ -21,7 +21,7 @@ def summary_pdf(model):
     c.setFillColor(BG); c.rect(0,0,w,h,fill=1,stroke=0)
     _label(c,'FOLIOLENS',28,h-37,22,WHITE,'Helvetica-Bold')
     _label(c,'Your investments, in focus.',29,h-53,9,MUTED)
-    _label(c,f"{'SYNTHETIC DEMO | ' if model['raw']['synthetic'] else ''}{model['health'].upper()}",w-28,h-28,8,CYAN,align='right')
+    _label(c,f"{'SYNTHETIC DEMO | ' if model['raw']['synthetic'] else 'PRIVATE FINANCIAL ANALYSIS | '}{model['health'].upper()}",w-28,h-28,8,CYAN,align='right')
     tx = data['latest_transaction_date']; vd = data['valuation_date']
     _label(c,f"Generated {data['report_date']:%d %b %Y} | Transactions to {tx:%d %b %Y}" if tx else 'Transaction cutoff unavailable',w-28,h-44,7,MUTED,align='right')
     _label(c,f'Stock/fund history to {vd:%d %b %Y}' if vd else 'Historical valuation unavailable',w-28,h-57,7,MUTED,align='right')
@@ -58,18 +58,25 @@ def summary_pdf(model):
             y=gy+gh*frac;c.setStrokeColor(GRID);c.setLineWidth(.3);c.line(gx,y,gx+gw,y)
             _label(c,f'{low+(high-low)*frac:,.0f}',gx-5,y-2,6,MUTED,align='right')
         for j,(seq,color,label) in enumerate(series):
-            c.setStrokeColor(color);c.setLineWidth(1.6);previous=None
+            c.setStrokeColor(color);c.setLineWidth(2 if j==0 else 1.6);c.setDash([] if j==0 else [5,3]);path=None
             for k,v in enumerate(seq):
-                if v is None or v!=v: previous=None;continue
+                if v is None or v!=v:
+                    if path:c.drawPath(path,stroke=1,fill=0)
+                    path=None;continue
                 point=(gx+gw*k/max(len(seq)-1,1),gy+gh*(float(v)-low)/(high-low))
-                if previous:c.line(*previous,*point)
-                previous=point
+                if path:path.lineTo(*point)
+                else:
+                    path=c.beginPath();path.moveTo(*point)
+            if path:c.drawPath(path,stroke=1,fill=0)
             _label(c,_truncate(label,265 if j else 100,6),px+42+j*110,py+12,6,color)
+            c.setDash([])
         _label(c,'Wealth (EUR) | Axis does not start at zero' if low != 0 else 'Wealth (EUR)',px+12,py+ph-46,6,MUTED)
         if not nav.empty:
             dates=__import__('pandas').to_datetime(nav['date'])
             _label(c,f'{dates.iloc[0]:%b %Y}',gx,gy-11,6,MUTED)
             _label(c,f'{dates.iloc[-1]:%b %Y}',gx+gw,gy-11,6,MUTED,align='right')
+            endpoints=[f"{label if j==0 else 'Benchmark'}: EUR {float(seq[-1]):,.2f}" for j,(seq,_,label) in enumerate(series) if seq and seq[-1] is not None and seq[-1]==seq[-1]]
+            _label(c,' | '.join(endpoints),px+pw-12,py+ph-46,5.5,MUTED,align='right')
     else:
         _label(c,'Unavailable - data requires review',px+30,py+78,10,AMBER)
     # Canonical monthly amounts and status markers; no forecast or uncovered zeros.

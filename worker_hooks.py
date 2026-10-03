@@ -9,6 +9,12 @@ def install_hooks(ns):
     # No additive sector metadata is needed by Pulse; never copy private seed data.
     ns['fetch_yahoo_security_metadata'] = lambda ticker: {}
     config = json.loads(Path(os.environ['PULSE_PRICE_INPUT']).read_text()) if os.environ.get('PULSE_PRICE_INPUT') else None
+    private=json.loads(Path(os.environ['FOLIOLENS_WORKER_CONFIG']).read_text(encoding='utf-8')) if os.environ.get('FOLIOLENS_WORKER_CONFIG') else {}
+    from pulse.private_config import install_private_events
+    install_private_events(ns,private)
+    # yfinance's auxiliary caches are worker-local and removed with the workspace.
+    if hasattr(ns['yf'],'set_tz_cache_location'):
+        ns['yf'].set_tz_cache_location(str(Path.cwd()/'provider-cache'))
     if config:
         def no_external_requests(*args,**kwargs):
             raise RuntimeError('External market-data calls are disabled for synthetic input')
@@ -57,6 +63,12 @@ def install_hooks(ns):
             except Exception:
                 return pd.DataFrame(), '', 'BENCHMARK_ERROR', 'Ticker or required benchmark data unavailable'
         ns['_fetch_yahoo_history'] = guarded_benchmark
+    if not config and 'find_best_yahoo_ticker' in ns:
+        from pulse.market import install_market
+        install_market(ns)
+    from pulse.market import install_derivatives
+    if 'yahoo_derivative_probe' in ns:
+        install_derivatives(ns,private,synthetic=bool(config))
     if os.environ.get('PULSE_BENCHMARK_DISABLED') == '1':
         original = ns['_fetch_yahoo_history']
         def without_benchmark(ticker,start_date,end_date):
@@ -87,6 +99,13 @@ def write_results(ns):
              'dividend_reinvestment_events','worthless_derecognition_events','stockfund_concentration']
     result = {name:serialize(ns[name]) for name in names}
     result['latest_transaction_date'] = serialize(ns['max_date'])
+    result['benchmark_identity']=ns.get('_foliolens_benchmark',{})
+    result['provider_diagnostics']=ns.get('_foliolens_transport',{})
+    result['fx_observations']=ns.get('_foliolens_fx',{})
+    result['active_derivatives']=serialize(ns.get('active_derivatives',pd.DataFrame()))
+    result['worthless_candidates']=serialize(ns.get('worthless_derecognition_diagnostics',pd.DataFrame()))
+    if os.environ.get('FOLIOLENS_CAPTURE')=='1':
+        result['market_capture']={'calls':ns.get('_foliolens_capture',{}),'benchmark':ns.get('_foliolens_benchmark',{})}
     Path(os.environ['PULSE_RESULT_PATH']).write_text(json.dumps(result,allow_nan=False),encoding='utf-8')
 
 

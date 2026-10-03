@@ -7,7 +7,7 @@ exports. A pinned V6.7.8 analytical core powers eight essential metrics, three
 charts, deterministic observations, contextual explanations and a private,
 one-page A4 landscape PDF.
 
-**Release status:** public synthetic demo. The public release defaults
+**Release status:** real-data personal analysis implemented; public synthetic demo. The public release defaults
 to a synthetic demo. Public CSV uploads remain disabled pending an approved
 hosted market-data arrangement. Public demo: https://foliolens-tr.streamlit.app/.
 See [release evidence](docs/VALIDATION.md) and [deployment](docs/DEPLOYMENT.md).
@@ -30,15 +30,14 @@ Choose **Try with Demo Portfolio**, optionally change the benchmark, inspect the
 summary and download **Portfolio Summary (PDF)**. **Clear session results**
 clears both analysis/download state and the selected upload.
 
-For local personal-use CSV analysis, set `PULSE_ENABLE_UPLOADS=1` before starting:
+For the full local personal-use workflow, use the loopback launcher:
 
 ```powershell
-$env:PULSE_ENABLE_UPLOADS = '1'
-python -m streamlit run streamlit_app.py --server.address 127.0.0.1
+python tools/run_personal.py
 ```
 
 The upload accepts the documented UTF-8 Trade Republic transaction CSV schema,
-at most 5 MB, 10,000 rows, 100 securities and ten years of dated history. Other
+at most 5 MB, 10,000 rows, 150 securities and ten years of dated history. Other
 file formats are not converted. Unknown events and unresolved basis stay blocked.
 Live market-data calls require network access and can fail or reach a timeout.
 
@@ -92,3 +91,22 @@ and FX coverage must validate. Failure leaves the benchmark unavailable without
 substituting a ticker. Wealth charts use a padded EUR axis, minimum 5% span,
 and a visible nonzero-axis notice. Recognized net investment income includes
 reinvested dividends once and is not necessarily cash received in the account.
+
+## Real portfolio analysis release
+
+Yahoo-powered identification, current/historical quotes, EUR conversion and custom
+benchmark metadata are integrated with the retained canonical engine. Exact-export
+private event confirmations and dated manual derivative valuations complete the
+personal workflow without editing legitimate transaction rows. Price-only indices
+are identified and warned; unavailable comparisons never substitute another ticker.
+
+See [personal setup and private review](docs/PERSONAL_USE.md),
+[component audit](docs/ARCHITECTURE_AUDIT.md), [security](docs/PRIVACY.md) and
+[provider/deployment rights](docs/LICENSING.md). Full real-export acceptance uses
+controlled captured prices/FX and the original read-only pipeline. Real financial
+artifacts stay outside the checkout; public fixtures remain entirely fabricated.
+
+Public CSV uploads remain disabled. `FOLIOLENS_MODE=public_demo` is the safe default;
+`personal` uses the provided loopback launcher. `owner_hosted` additionally requires
+verified external access controls and provider rights, with explicit operator
+configuration. Configuration flags are not permission grants or authentication.

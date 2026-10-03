@@ -5,39 +5,46 @@
     "portfolio_core.py": {
       "original_sha256": "1cd670fc49ba1ae4075ecab5194a0d172048c02c6535879a19f52f5657badf09",
       "selected_sha256": "1cd670fc49ba1ae4075ecab5194a0d172048c02c6535879a19f52f5657badf09",
-      "changes": []
+      "changes": [],
+      "repository_lf_sha256": "1cd670fc49ba1ae4075ecab5194a0d172048c02c6535879a19f52f5657badf09"
     },
     "automated_investing.py": {
       "original_sha256": "1ebcd0ffeba3e8c1ce26d7eae341f895a9efc0b74b995a0a2276ca68d8e5f99a",
       "selected_sha256": "1ebcd0ffeba3e8c1ce26d7eae341f895a9efc0b74b995a0a2276ca68d8e5f99a",
-      "changes": []
+      "changes": [],
+      "repository_lf_sha256": "1ebcd0ffeba3e8c1ce26d7eae341f895a9efc0b74b995a0a2276ca68d8e5f99a"
     },
     "dividend_engine.py": {
       "original_sha256": "0313ec1486289d51d73984e98b060b4ae190cd38dad9b03767dc1c9932e67df4",
       "selected_sha256": "a464f22567af066bc6506f56c115be0c2c873a8e087d158cbda146eb471ae6f4",
-      "changes": []
+      "changes": [],
+      "repository_lf_sha256": "a464f22567af066bc6506f56c115be0c2c873a8e087d158cbda146eb471ae6f4"
     },
     "dividend_reinvestment.py": {
       "original_sha256": "ea8cabc9986d56564b54954b202abbd61d6756988a89cf6182c0112a8704f618",
       "selected_sha256": "ea8cabc9986d56564b54954b202abbd61d6756988a89cf6182c0112a8704f618",
-      "changes": []
+      "changes": [],
+      "repository_lf_sha256": "ea8cabc9986d56564b54954b202abbd61d6756988a89cf6182c0112a8704f618"
     },
     "exposure_engine.py": {
       "original_sha256": "8b12818b8a6906abdf1bf3c49491794ae133afb6b5137dc94f0757c337d6be35",
       "selected_sha256": "c281568ae0138d57b9adfb6761c589fbf44769427a625b71f930540ba25d9118",
-      "changes": []
+      "changes": [],
+      "repository_lf_sha256": "c281568ae0138d57b9adfb6761c589fbf44769427a625b71f930540ba25d9118"
     },
     "security_events.py": {
       "original_sha256": "814be646911d29e682525d9ba52b7a29cb9011e469363e746f66e101f750a25f",
       "selected_sha256": "78135417ba7625e3e6434066576bd57f4eea6903878b1b225ccb6708d426d71a",
       "changes": [
         "Personal known-event entries removed; all matching safeguards retained"
-      ]
+      ],
+      "repository_lf_sha256": "78135417ba7625e3e6434066576bd57f4eea6903878b1b225ccb6708d426d71a"
     },
     "investment_snapshot_pdf.py": {
       "original_sha256": "992ffbd2ae3a7bb3948e56a9a0031cb77519782f24d161e1b58988ec270738f2",
       "selected_sha256": "992ffbd2ae3a7bb3948e56a9a0031cb77519782f24d161e1b58988ec270738f2",
-      "changes": []
+      "changes": [],
+      "repository_lf_sha256": "992ffbd2ae3a7bb3948e56a9a0031cb77519782f24d161e1b58988ec270738f2"
     },
     "analysis_engine.py": {
       "original_sha256": "ef59fa8e05978b47e7ccd75275d05a93af4125f1849dedc6aa7711e57fa0fc8a",
@@ -46,7 +53,9 @@
         "Old HTML/Excel/ZIP and rounded summary exports removed",
         "Metadata cache confined to worker temporary directory; private seed excluded",
         "Price injection and canonical result serialization hooks added"
-      ]
+      ],
+      "repository_lf_sha256": "37778432303d517ecab4b3be1d1ecd0467684728986a872223cd74be1fe8b20c"
     }
-  }
+  },
+  "repository_line_endings": "Git stores LF text. selected_sha256 records the pre-Git export bytes; repository_lf_sha256 verifies the committed LF representation."
 }

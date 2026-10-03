@@ -6,6 +6,10 @@ import re
 from pathlib import Path
 from pulse.benchmarks import PRESETS, validate_ticker
 from pulse.charts import wealth_range
+from pulse.mode import uploads_enabled, mode
+from pulse.private_config import event_candidates,export_digest,load_private_config
+from pulse.runner import validate_upload
+import json
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -20,20 +24,23 @@ st.markdown('''<style>
 h1{letter-spacing:-1.5px} [data-testid="stMetric"]{background:#112238;border:1px solid #24415e;border-radius:12px;padding:16px}
 [data-testid="stMetricValue"]{font-size:1.7rem} [data-testid="stMetricLabel"]{font-size:.9rem}
 [data-testid="stSidebar"]{border-right:1px solid #24415e}
+.period-performance{border:1px solid #24415e;background:#112238;border-radius:12px;padding:18px;margin:10px 0}
+.period-performance strong{display:block;font-size:2rem;color:#42cbea;line-height:1.35}
 @media(max-width:600px){.block-container{padding:1rem}[data-testid="stMetricValue"]{font-size:1.4rem}}
 </style>''',unsafe_allow_html=True)
 
-upload_enabled = os.environ.get('PULSE_ENABLE_UPLOADS') == '1'
+upload_enabled = uploads_enabled()
+session_config=None
 with st.sidebar:
-    st.image(str(Path(__file__).parent/'assets/foliolens.svg'),width=48)
-    st.markdown('### FolioLens')
-    st.caption('Your investments, in focus.')
-    st.divider()
+    mark,brand=st.columns([1,4])
+    with mark:st.image(str(Path(__file__).parent/'assets/foliolens.svg'),width=32)
+    with brand:
+        st.markdown('**FolioLens**')
+        st.caption('Your investments, in focus.')
     upload_epoch = st.session_state.get('upload_epoch',0)
     uploaded = None
     if upload_enabled:
         st.markdown('**Transaction export**')
-        st.caption('Local personal-use workflow. This server processes files; security identifiers/tickers may be sent to price providers. Temporary files are deleted after processing.')
         uploaded = st.file_uploader('Trade Republic transaction CSV',type=['csv'],key=f'upload_{upload_epoch}')
         st.caption('UTF-8 CSV · up to 5 MB / 10,000 rows')
     else:
@@ -41,30 +48,65 @@ with st.sidebar:
         st.link_button('Local workflow documentation','https://github.com/nayakpranav/portfolio-pulse#run')
     st.markdown('**Benchmark**')
     options = ['MSCI World ETF (default)','Global All-Country ETF','S&P 500 ETF']
-    if upload_enabled: options.append('Custom benchmark ticker')
+    if upload_enabled: options.append('Custom Yahoo Finance ticker')
     options.append('No comparison')
     selection = st.selectbox('Compare with',options)
     benchmark = dict(zip(options[:3],PRESETS)).get(selection)
     custom_valid = True
-    if selection == 'Custom benchmark ticker':
-        custom = st.text_input('Provider-compatible ticker',placeholder='e.g. SXR8.DE',max_chars=32)
+    if selection == 'Custom Yahoo Finance ticker':
+        custom = st.text_input('Provider-compatible ticker',placeholder='SPY, IWDA.AS or ^GSPC',max_chars=32)
         try:
             benchmark = validate_ticker(custom)
         except ValueError as exc:
             custom_valid = False
             if custom: st.error(str(exc))
-        st.caption('Requires reliable adjusted historical prices and EUR conversion. Invalid or incomplete data produces no comparison, with no substitute ticker.')
+        st.caption('Exact identity, adjusted prices and EUR conversion must validate. Price-only indices cannot provide the dividend-inclusive comparison.')
     if not upload_enabled:
-        st.caption('ETF choices use explicitly defined synthetic illustrations, not the named securities historical performance. Custom tickers are local-only.')
+        st.caption('Fabricated benchmark illustrations · custom tickers are local-only.')
     analyze = st.button('Analyze Portfolio',type='primary',use_container_width=True,disabled=uploaded is None or not custom_valid) if upload_enabled else False
-    demo = st.button('Try with Demo Portfolio',type='secondary' if upload_enabled else 'primary',use_container_width=True,disabled=selection=='Custom benchmark ticker')
+    demo = st.button('Try with Demo Portfolio',type='secondary' if upload_enabled else 'primary',use_container_width=True,disabled=selection=='Custom Yahoo Finance ticker')
     if st.button('Clear session results',use_container_width=True):
-        for key in ('model','pdf'):
-            st.session_state.pop(key,None)
+        for key in list(st.session_state):
+            if key in {'model','pdf','input_digest','twr_period','start_demo'} or key.startswith(('event_','manual_')):
+                st.session_state.pop(key,None)
         st.session_state.pop(f'upload_{upload_epoch}',None)
         st.session_state['upload_epoch'] = upload_epoch+1
         st.rerun()
-    st.divider()
+    if upload_enabled:
+        with st.expander('Processing and privacy'):
+            st.write('Your CSV is transmitted to this Streamlit backend to calculate results. Public security identifiers/names and tickers may be requested from Yahoo Finance and OpenFIGI, which can reveal your holdings to them. Reports contain private financial information.')
+            st.write('Worker files and caches are deleted after processing. Results and PDF downloads stay in this session until cleared or the session expires; no permanent portfolio storage or private shared cache is used. Clear removes the selected upload and analysis/download state. Use an authenticated backend for hosted personal analysis.')
+    if uploaded is not None:
+        content=uploaded.getvalue();digest=export_digest(content)
+        if st.session_state.get('input_digest')!=digest:
+            st.session_state.pop('model',None);st.session_state.pop('pdf',None)
+            for key in list(st.session_state):
+                if key.startswith(('event_','manual_')):st.session_state.pop(key,None)
+            st.session_state['input_digest']=digest
+        try:
+            validate_upload(content)
+            local_defaults=load_private_config(os.environ['FOLIOLENS_PRIVATE_CONFIG'],content) if os.environ.get('FOLIOLENS_PRIVATE_CONFIG') else {}
+            candidates=event_candidates(content)
+            confirmations=[]
+            prior=st.session_state.get('model',{}).get('raw',{})
+            derivatives=prior.get('active_derivatives',[]) if not prior.get('synthetic') else []
+            if candidates or derivatives:
+                with st.expander('Private event / valuation review'):
+                    for candidate in candidates:
+                        st.text(f"Row {candidate['source_row']} · {candidate['date']}\n{candidate['name']} · {candidate['isin']}\nQuantity removed: {abs(candidate['quantity']):g}")
+                        if st.checkbox('I confirm a full-position worthless write-off with no proceeds.',value=candidate['source_row'] in local_defaults.get('worthless_confirmations',[]),key=f"event_{digest}_{candidate['source_row']}"):
+                            confirmations.append(candidate['source_row'])
+                    st.caption('Confirmation does not waive canonical cash, full-position or prior-activity checks. Reanalyze after reviewing.')
+                    for derivative in derivatives:
+                        st.text(f"{derivative['security_name']} · {derivative['isin']} · quantity {derivative['current_quantity']:g}")
+                    raw_quotes=st.text_area('Dated manual derivative EUR prices (JSON)',value=json.dumps(local_defaults.get('derivative_quotes',{})) if local_defaults.get('derivative_quotes') else '',key='manual_quotes',placeholder='{"ISIN": {"price_eur": 1.25, "date": "YYYY-MM-DD", "source": "Broker bid"}}') if derivatives else ''
+            else:raw_quotes=''
+            if not raw_quotes and local_defaults.get('derivative_quotes'):raw_quotes=json.dumps(local_defaults['derivative_quotes'])
+            if len(raw_quotes.encode('utf-8'))>65536:raise ValueError('Private valuation input exceeds limit')
+            session_config={'export_sha256':digest,'worthless_confirmations':confirmations,'derivative_quotes':json.loads(raw_quotes) if raw_quotes else {}}
+        except (AnalysisError,ValueError,TypeError,OSError):
+            st.error('Review the CSV or private valuation JSON before analyzing. No private input is logged.')
+            analyze=False
     st.caption('Independent, unofficial project. Not affiliated with Trade Republic. Analytical information, without buy/sell recommendations.')
 
 st.title('FolioLens')
@@ -76,7 +118,7 @@ if demo or analyze or start_demo:
     data,prices = fixture() if demo or start_demo else (uploaded.getvalue(),None)
     try:
         with st.spinner('Reconstructing investments, income and matched performance…'):
-            result = run_analysis(data,benchmark=benchmark,prices=prices)
+            result = run_analysis(data,benchmark=benchmark,prices=prices,private_config=session_config if analyze else None)
             model = prepare(result,report_date=datetime.now(ZoneInfo('Europe/Berlin')).date())
             pdf = summary_pdf(model)
             st.session_state['model'] = model;st.session_state['pdf'] = pdf
@@ -105,9 +147,9 @@ with download:
     st.download_button('Download Portfolio Summary (PDF)',st.session_state['pdf'],file_name='FolioLens_Summary.pdf',mime='application/pdf',use_container_width=True)
 with st.expander('Data health and coverage'):
     if model['issues']:
-        for issue in model['issues']:st.write('• '+issue)
+        for issue in model['issues']:st.text('• '+issue)
     else:st.write('No blocking issues in the tracked analytical scope.')
-    st.caption('Tracked lifetime results may include derivatives and income. Historical returns and benchmark comparison cover only stocks/funds. Brokerage cash is excluded from tracked value. Open derivative quotes are disabled in this MVP, so derivative-dependent totals can be unavailable.')
+    st.caption('Tracked lifetime results may include derivatives and income. Historical returns and benchmark comparison cover stocks/funds, excluding brokerage cash. Derivatives require a verified quote or explicit dated manual valuation; missing valuations block dependent totals.')
     if model['valuation_missing']:st.warning('Holdings rankings cover only valued stocks/funds; unpriced positions are omitted.')
 
 for offset in (0,4):
@@ -128,15 +170,25 @@ if not nav.empty:
     chart_data = nav[['date',*columns]].rename(columns=columns).melt('date',var_name='Series',value_name='Value')
     low, high = wealth_range(chart_data['Value'])
     st.caption('Wealth in EUR · padded vertical range' + (' · axis does not start at zero' if low != 0 else ''))
-    chart = alt.Chart(chart_data).mark_line(strokeWidth=2.5).encode(x=alt.X('date:T',title='Date',axis=alt.Axis(format='%b %Y')),
-        y=alt.Y('Value:Q',title='Wealth (EUR)',scale=alt.Scale(domain=[low,high],zero=False,nice=False)),color=alt.Color('Series:N',title=None,scale=alt.Scale(range=['#42cbea','#397df5']),legend=alt.Legend(orient='top',direction='vertical',columns=1,labelLimit=320)),
-        tooltip=['date:T','Series:N',alt.Tooltip('Value:Q',format=',.2f')]).properties(height=245)
+    names=list(columns.values())
+    chart = alt.Chart(chart_data).mark_line(strokeWidth=2.8).encode(x=alt.X('date:T',title='Date',axis=alt.Axis(format='%b %Y',tickCount=6)),
+        y=alt.Y('Value:Q',title='Wealth (EUR)',scale=alt.Scale(domain=[low,high],zero=False,nice=False)),color=alt.Color('Series:N',title=None,scale=alt.Scale(domain=names,range=['#42cbea','#397df5']),legend=alt.Legend(orient='top',direction='vertical',columns=1,labelLimit=320)),
+        strokeDash=alt.StrokeDash('Series:N',scale=alt.Scale(domain=names,range=[[1,0],[7,4]]),legend=None),
+        tooltip=['date:T','Series:N',alt.Tooltip('Value:Q',format=',.2f')]).properties(height=330)
     st.altair_chart(chart,use_container_width=True)
-    if model['periods']:
-        period = st.segmented_control('Cumulative period TWR',[r['period_key'] for r in model['periods']],default=model['periods'][-1]['period_key'])
-        selected = next((r for r in model['periods'] if r['period_key']==period),None)
-        if selected:st.caption(f"{period} cumulative stock/fund TWR: {selected['portfolio_twr_pct']:.2f}% · established observation/date anchors")
+    last=nav.iloc[-1]
+    st.caption('Endpoint wealth · '+ ' · '.join(f"{name}: €{float(last[col]):,.2f}" for col,name in columns.items() if pd.notna(last[col])))
 else:st.info('Unavailable — data requires review. Historical stock/fund wealth cannot be presented reliably.')
+
+st.markdown('### Cumulative Period Performance')
+period = st.segmented_control('Cumulative period TWR',['1M','3M','YTD','1Y','MAX'],default='MAX',key='twr_period')
+selected = next((r for r in model['periods'] if r['period_key']==period),None)
+value=f"{selected['portfolio_twr_pct']:.2f}%" if selected else 'Unavailable'
+st.markdown(f'<div class="period-performance">{period or "Select a period"} · Cumulative stock/fund TWR<strong>{value}</strong></div>',unsafe_allow_html=True)
+if selected:
+    st.caption(f"{period} cumulative stock/fund TWR: {selected['portfolio_twr_pct']:.2f}% · {pd.Timestamp(selected['effective_start_date']):%d %b %Y} to {pd.Timestamp(selected['end_date']):%d %b %Y}")
+else:st.caption('This period lacks reliable observations or accounting coverage. Missing performance is not zero.')
+st.caption('Cumulative TWR adjusts for cash flows across the selected period. MWR is annualized; the headline TWR covers the full available history. Cash and derivatives are excluded.')
 
 income_col,holdings_col = st.columns([1.15,1])
 with income_col:

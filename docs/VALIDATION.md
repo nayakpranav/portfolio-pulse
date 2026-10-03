@@ -104,3 +104,55 @@ It remains one landscape A4 page. Public demos used only fabricated transactions
 and prices. Privacy/source audit passed across 63 tracked text files, with no
 findings; the sole binary is the original generated favicon. Working vendor files
 remain unchanged. The original Holy Grail repository and deployment were untouched.
+
+
+## Real Portfolio Analysis release (4 October 2026)
+
+The retained V6.7.8 accounting definitions remain unchanged. Personal-mode Yahoo
+identity, current/history pricing, adjusted-price benchmark resolution and EUR FX
+are integrated with bounded transport, explicit provider restrictions and offline
+captured-input replay. Unknown events remain blocking; export-bound confirmations
+reuse exact canonical worthless-event classification. Dated manual derivative EUR
+quotes are explicit review inputs, not verified live exchange quotes.
+
+A complete authorized private export was processed locally with Yahoo inputs.
+Its financial artifacts and capture/configuration files remain outside the Git
+checkout. A controlled V6.7.8/FolioLens comparison using identical export,
+captured public prices/FX, valuation inputs, benchmark and private classification
+passed all 27 shared result fields, eight metrics, holdings, monthly income,
+corporate-action outcomes and diagnostics exactly at unrounded numeric level.
+All 126 retained engine definitions are AST-identical. Manual derivative inputs
+from the supplied reference snapshot carry capture-date-only provenance where
+exchange calendar dates were unavailable; data health remains review-required.
+
+Production dependency vulnerability and consistency audits passed. Worker tests
+cover malformed/oversized inputs, security count bounds, admission, memory/time
+limits, temporary cleanup, exact private event binding, partial-removal blocking,
+manual valuation gaps, custom symbol syntax/identity, price indices, non-EUR FX,
+missing history/currency, stale quotes, provider timeout and rate-limit stopping.
+The public release remains synthetic: no unrestricted hosted Yahoo rights have
+been established, and no private export is used in public deployment checks.
+
+Final test/browser/deployment evidence is recorded in the release handoff after
+publication. The original repository and deployment are read-only and untouched.
+
+
+Final local safe suite: **78 passed**. All nine original synthetic comparison
+scenarios passed exactly. Live personal checks with fabricated transaction rows
+verified a USD SPY benchmark and EUR conversion, explicit price-index rejection
+for ^GSPC, and an invalid ticker remaining unavailable without substitution.
+The complete private export passed loopback browser acceptance with eight metrics,
+three charts, all five TWR periods, private PDF download and clearing the upload,
+results and PDF. A second independent session retained its own synthetic results
+and download after the private session cleared. No private financial values were
+logged. Fresh public-preview Chrome checks passed at 1440px and 390px, including
+all four public benchmark modes and PDF/clear workflows, with no page errors.
+
+Synthetic and private PDFs rendered as one A4 landscape page; text and vector
+bounds passed. The synthetic render was visually reviewed. Real artifacts were
+inspected privately for geometry and expected values. Production dependency audit
+reported no known vulnerabilities; dependency consistency passed. Git-tracked
+source and all reachable history were scanned for private record markers,
+credentials and artifacts. Original extracted source hashes remain unchanged;
+retained vendor files equal the previous committed core. The provenance manifest
+now also records Git's LF-normalized hashes alongside original export byte hashes.

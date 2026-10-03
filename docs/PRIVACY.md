@@ -1,51 +1,73 @@
-# Privacy and data handling
+# Privacy, security and actual retention
 
-Public source does not mean client-only processing. A CSV uploaded to a hosted
-Streamlit app is transferred to and processed on that server. This application
-does not claim that uploads stay on the user's computer.
+A hosted upload is transmitted to the Streamlit backend to calculate financial
+results. Public securities/names/tickers and FX pairs may be sent to Yahoo Finance
+and OpenFIGI, revealing instruments of interest. Reports contain private financial
+information. This is not a claim that hosted financial data stays on the computer.
 
-**Public deployment defaults to synthetic demo only.** `PULSE_ENABLE_UPLOADS=1`
-enables the production CSV widget. Do not enable it for a public deployment until
-the operator has reviewed provider rights, hosting/privacy obligations and resource
-limits. Local personal-use analysis should bind to `127.0.0.1`.
+Public deployment remains `public_demo`, with no CSV input or live market requests.
+The full local workflow uses `tools/run_personal.py` bound to `127.0.0.1`. Legacy
+`PULSE_ENABLE_UPLOADS=1` remains a personal compatibility option, not an approved
+public release. Explicit `owner_hosted` requires both provider-rights and owner-gate
+verification flags. An external gateway must protect HTTP, WebSocket and media/
+download endpoints; a flag alone is not authentication or a legal authorization.
 
-For an enabled upload:
+## Input, execution and requests
 
-- Each analysis uses a separate subprocess and unpredictable temporary directory.
-- Private input, outputs and provider-cache overlays stay in that directory and
-  are deleted on normal success, error or timeout. Operating-system/process crashes
-  can leave temporary files; operators should clean stale directories securely.
-- Worker stdout/stderr are discarded. Browser exceptions use generic messages;
-  no raw export contents, broker identifiers or private diagnostics are logged.
-- Analysis and PDF bytes are kept in the current Streamlit session only. There
-  is no `st.cache_data`, private global cache or shared download directory.
-- **Clear session results** deletes the model/PDF session keys and resets the
-  upload widget with a new widget key. Streamlit/hosting connection lifetimes
-  govern in-memory cleanup on disconnect; no secure RAM erasure is promised.
-- Generated PDFs are private financial artifacts, even when source is public.
-- No transaction files or generated private reports are committed or served from
-  repository/static paths. `.gitignore` excludes outputs, uploads, secrets and caches.
+UTF-8 CSV content is parsed and validated with canonical column mapping. Limits:
+5 MB, 10,000 rows, 150 historical securities, ten years, 64 columns and bounded
+fields. Private review JSON is capped at 64 KiB; backend messages at 16 MiB.
+Workers receive only an allowlist of runtime environment paths, excluding arbitrary
+application credentials. Binary NULs, malformed CSV/rows, duplicate headers, invalid dates and
+nonfinite/extreme financial values are rejected. No input is evaluated/executed.
+Canonical supported/unknown-event diagnostics determine which outputs remain valid.
 
-No external price requests occur in synthetic mode. In local live analysis, the
-inherited core may request public security ISINs/names/tickers, benchmark tickers
-and currency pairs from Yahoo/yfinance and OpenFIGI. It does not send CSV histories,
-account details, private row identifiers or generated reports. Public security
-requests can still reveal which instruments are of interest to the user. Do not
-put private text in security-name fields; use a verified broker export.
+Each analysis has its own subprocess and unpredictable temporary workspace. Two
+workers can be admitted per application process. Workers are supervised for up
+to 300 seconds and 1 GiB RSS, including child processes. Failure to monitor resources
+stops analysis. Timeout/memory failure kills the worker before cleanup. These are
+application-process controls, not infrastructure-wide DDoS/rate/abuse protection.
+A hosted service still needs gateway quotas, aggregate resource budgets and
+operational review. Public uploads remain off while those prerequisites are unmet.
 
-Open derivative scraping/probes, future dividend enrichment and additive sector
-metadata fetching are disabled in Pulse. The original private metadata seed is
-excluded. There are no required API credentials, model APIs or telemetry added.
-Streamlit usage telemetry is disabled. The hosting platform has its own access
-logs, processing policies and subprocess/runtime behavior.
+Provider HTTP requests are HTTPS-only to Yahoo and OpenFIGI, with a ten-second
+request ceiling, at most one transient timeout retry and an 800-request worker
+budget. Restricted/denied/rate-limited providers stop receiving requests. Unapproved
+redirects are refused. No CAPTCHA or authorization/rate-limit bypass is used.
+Only public identification/price inputs are sent; transaction exports, account
+identifiers, private transaction UUIDs and reports are never request payloads.
+Unapproved non-Yahoo derivative scrapers remain disabled.
 
-Input limits: UTF-8 CSV, 5 MB, 10,000 rows, 100 securities, ten years, bounded text
-fields and a 120-second worker timeout. Unsupported formats and malformed dates
-fail before analysis. A server operator must add infrastructure resource/rate
-limits appropriate to their hosting environment before enabling public uploads.
+## Isolation and cleanup
 
-Local validation included concurrent independent worker processes with distinct
-values/downloads, separate Streamlit sessions with different benchmark results,
-clearing one session without affecting the other, temporary-file cleanup and
-synthetic/malformed browser uploads. These tests do not establish a formal
-security certification or approval of third-party market-data hosting rights.
+Private input/config/results and all worker/provider caches stay in the analysis
+temporary directory, which is deleted after success, errors and timeouts. Cleanup
+retries transient filesystem locks; persistent failure is reported without exposing
+paths. A hard process/OS crash can leave orphaned files. Operators must restrict
+backend storage access and remove stale workspaces; no secure RAM/disk erasure is
+promised. The original personal registry/metadata seed is not distributed.
+
+There are no shared portfolio objects or private `st.cache_data` entries. Provider
+objects/observations are cached within a single worker only. Models and PDF bytes
+remain in the current Streamlit session. Clear resets upload/model/PDF and event/
+manual-review state. Changing the uploaded export removes stale analysis and
+download state. Framework connection expiry/orphan-media cleanup controls eventual
+in-memory retention. A deliberately copied PDF or external private config is not
+deleted by clearing the session. Avoid persistent shared volumes for private output.
+
+Worker stdout/stderr and provider logging are suppressed. User errors are sanitized;
+raw exception payloads, financial rows, private UUIDs and reports are not logged.
+Only safe diagnostic statuses/counts are used for acceptance summaries. Streamlit
+usage telemetry is disabled; the hosting provider has its own access/log policies.
+
+Application private reports are never written into repository/static paths. Local
+controlled acceptance deliberately stores confidential results/config and captured
+identifiers in a private temporary directory outside the checkout. These contain
+financial information and must not be uploaded to the public app or published.
+The public audit covers staged/tracked source; Git-history hygiene is reviewed
+separately. Synthetic fixtures alone are committed.
+
+Tests cover independent workers/sessions, session-specific PDF bytes, clearing,
+export-bound confirmations, malformed/oversized input, provider failures and
+restrictions, admission/memory/time limits and transient cleanup failures. They
+do not establish a formal security certification or unlimited hosting rights.

@@ -78,7 +78,7 @@ def test_public_landing_has_no_upload_or_custom(monkeypatch):
     app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'streamlit_app.py'),default_timeout=30).run()
     assert not app.exception
     assert not app.get('file_uploader')
-    assert 'Custom benchmark ticker' not in app.selectbox[0].options
+    assert 'Custom Yahoo Finance ticker' not in app.selectbox[0].options
     assert app.title[0].value=='FolioLens'
     next(b for b in app.button if b.key=='landing_demo').click().run()
     assert not app.exception and len(app.metric)==8
@@ -88,7 +88,7 @@ def test_local_custom_input_validation(monkeypatch):
     from streamlit.testing.v1 import AppTest
     from pathlib import Path
     app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'streamlit_app.py')).run()
-    app.selectbox[0].select('Custom benchmark ticker').run()
+    app.selectbox[0].select('Custom Yahoo Finance ticker').run()
     app.text_input[0].set_value('../bad').run()
     assert not app.exception and app.error
     assert next(b for b in app.button if b.label=='Analyze Portfolio').disabled
