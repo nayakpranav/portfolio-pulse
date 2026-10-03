@@ -86,5 +86,21 @@ Independent-session isolation remains covered by the full suite. The final PDF
 was rendered and visually reviewed for axis/date labels, benchmark identification,
 income terminology and clipping. Artifacts and screenshots remain Git-ignored.
 
-Public deployment verification is performed after pushing this release; its
-record is added below once the deployed revision has been exercised.
+### Deployed release verification
+
+Release `e6818117d6f4cdf7cfda6baadccf3132d152c9a9` was pushed to the independent
+repository. [GitHub CI passed](https://github.com/nayakpranav/portfolio-pulse/actions/runs/37158086658).
+The deployed https://foliolens-tr.streamlit.app/ application was exercised in
+its Streamlit hosting frame using fresh browser contexts at 1440px and 390px.
+Both desktop and mobile workflows passed: demo primary action, eight metrics,
+three charts, all four public comparison modes, coverage/holdings expansion,
+period selection, PDF download and clearing results. No browser page errors.
+The hosted interface has no upload input or custom-ticker choice.
+
+The deployed default-benchmark PDF was downloaded and its eight displayed values,
+synthetic benchmark name, FolioLens branding, recognized-income terminology and
+nonzero-axis notice were checked against the validated synthetic expectations.
+It remains one landscape A4 page. Public demos used only fabricated transactions
+and prices. Privacy/source audit passed across 63 tracked text files, with no
+findings; the sole binary is the original generated favicon. Working vendor files
+remain unchanged. The original Holy Grail repository and deployment were untouched.
