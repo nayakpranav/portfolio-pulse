@@ -3,6 +3,7 @@ from io import BytesIO
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas
 from pulse import core
+from pulse.charts import wealth_range
 from investment_snapshot_pdf import (_panel,_label,_truncate,_holding_name_lines,_kpi_icon,
     BG,WHITE,MUTED,CYAN,BLUE,GREEN,AMBER,GRID)
 
@@ -13,13 +14,13 @@ def summary_pdf(model):
     data = model['snapshot']
     output = BytesIO()
     c = canvas.Canvas(output,pagesize=landscape(A4),pageCompression=1)
-    c.setTitle('Portfolio Pulse | Portfolio Summary')
-    c.setAuthor('Portfolio Pulse')
+    c.setTitle('FolioLens | Portfolio Summary')
+    c.setAuthor('FolioLens')
     c.setSubject('Private analytical summary; unofficial and not a tax statement')
     w,h = landscape(A4)
     c.setFillColor(BG); c.rect(0,0,w,h,fill=1,stroke=0)
-    _label(c,'PORTFOLIO PULSE',28,h-37,22,WHITE,'Helvetica-Bold')
-    _label(c,'Your investments, performance and income at a glance.',29,h-53,9,MUTED)
+    _label(c,'FOLIOLENS',28,h-37,22,WHITE,'Helvetica-Bold')
+    _label(c,'Your investments, in focus.',29,h-53,9,MUTED)
     _label(c,f"{'SYNTHETIC DEMO | ' if model['raw']['synthetic'] else ''}{model['health'].upper()}",w-28,h-28,8,CYAN,align='right')
     tx = data['latest_transaction_date']; vd = data['valuation_date']
     _label(c,f"Generated {data['report_date']:%d %b %Y} | Transactions to {tx:%d %b %Y}" if tx else 'Transaction cutoff unavailable',w-28,h-44,7,MUTED,align='right')
@@ -36,7 +37,9 @@ def summary_pdf(model):
         x=28+i*(card_w+6)
         _label(c,metric.label.upper(),x+2,h-165,6.7,MUTED,'Helvetica-Bold')
         _label(c,ascii_text(metric.display),x+2,h-187,15,GREEN if metric.value is not None else AMBER,'Helvetica-Bold')
-        _label(c,'Cumulative' if metric.key=='twr' else f"{data['year']} net receipts" if metric.key=='income' else 'Annualized',x+2,h-202,7,MUTED)
+        _label(c,'Cumulative' if metric.key=='twr' else f"{data['year']} recognized net investment income" if metric.key=='income' else 'Annualized',x+2,h-202,6 if metric.key=='income' else 7,MUTED)
+        if metric.key=='benchmark':
+            _label(c,_truncate(ascii_text(model['raw'].get('benchmark_name','Selected benchmark')),card_w-4,6),x+2,h-213,6,MUTED)
     # Main matched-wealth panel, retaining gaps rather than drawing through missing values.
     px,py,pw,ph=28,199,478,170
     _panel(c,px,py,pw,ph)
@@ -44,12 +47,12 @@ def summary_pdf(model):
     _label(c,'Cash and derivatives excluded | EUR',px+12,py+ph-35,7,MUTED)
     nav=model['nav']
     series=[]
-    for column,color,label in [('stockfund_value_eur',CYAN,'Actual'),('benchmark_pme_value_eur',BLUE,'Matched benchmark')]:
+    for column,color,label in [('stockfund_value_eur',CYAN,'Actual'),('benchmark_pme_value_eur',BLUE,ascii_text(model['raw'].get('benchmark_name','Matched benchmark')))]:
         if column in nav and (column!='benchmark_pme_value_eur' or model['by_key']['benchmark'].value is not None):
             series.append((list(nav[column]),color,label))
     values=[float(v) for seq,_,_ in series for v in seq if v is not None and v==v]
     if values:
-        low=min(0,min(values)); high=max(values) or 1
+        low,high=wealth_range(values)
         gx,gy,gw,gh=px+41,py+37,pw-58,ph-87
         for frac in (0,.5,1):
             y=gy+gh*frac;c.setStrokeColor(GRID);c.setLineWidth(.3);c.line(gx,y,gx+gw,y)
@@ -61,14 +64,19 @@ def summary_pdf(model):
                 point=(gx+gw*k/max(len(seq)-1,1),gy+gh*(float(v)-low)/(high-low))
                 if previous:c.line(*previous,*point)
                 previous=point
-            _label(c,label,px+42+j*150,py+17,7,color)
+            _label(c,_truncate(label,265 if j else 100,6),px+42+j*110,py+12,6,color)
+        _label(c,'Wealth (EUR) | Axis does not start at zero' if low != 0 else 'Wealth (EUR)',px+12,py+ph-46,6,MUTED)
+        if not nav.empty:
+            dates=__import__('pandas').to_datetime(nav['date'])
+            _label(c,f'{dates.iloc[0]:%b %Y}',gx,gy-11,6,MUTED)
+            _label(c,f'{dates.iloc[-1]:%b %Y}',gx+gw,gy-11,6,MUTED,align='right')
     else:
         _label(c,'Unavailable - data requires review',px+30,py+78,10,AMBER)
     # Canonical monthly amounts and status markers; no forecast or uncovered zeros.
     ix,iy,iw,ih=514,199,w-542,170
     _panel(c,ix,iy,iw,ih)
     _label(c,f"NET INVESTMENT INCOME | {data['year']}",ix+12,iy+ih-20,9,WHITE,'Helvetica-Bold')
-    _label(c,'Actual dividends + interest; outline = partial',ix+12,iy+ih-35,6.8,MUTED)
+    _label(c,'Recognized net income; outline = partial',ix+12,iy+ih-35,6.8,MUTED)
     months=data['months'];scale=max([abs(m['total']) for m in months if m['total'] is not None] or [1]) or 1
     gx,gy,gw,gh=ix+15,iy+42,iw-30,ih-91
     signed=any(m['total'] is not None and m['total']<0 for m in months)

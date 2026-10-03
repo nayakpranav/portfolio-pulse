@@ -1,8 +1,11 @@
-"""One-page Portfolio Pulse UI. Session data is never placed in shared caches."""
+"""One-page FolioLens UI. Session data is never placed in shared caches."""
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import os
 import re
+from pathlib import Path
+from pulse.benchmarks import PRESETS, validate_ticker
+from pulse.charts import wealth_range
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -11,7 +14,7 @@ from pulse.synthetic import fixture
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 
-st.set_page_config(page_title='Portfolio Pulse',page_icon='◉',layout='wide')
+st.set_page_config(page_title='FolioLens',page_icon=str(Path(__file__).parent/'assets/favicon.png'),layout='wide')
 st.markdown('''<style>
 .block-container{max-width:1300px;padding-top:2rem;padding-bottom:2rem}
 h1{letter-spacing:-1.5px} [data-testid="stMetric"]{background:#112238;border:1px solid #24415e;border-radius:12px;padding:16px}
@@ -22,22 +25,39 @@ h1{letter-spacing:-1.5px} [data-testid="stMetric"]{background:#112238;border:1px
 
 upload_enabled = os.environ.get('PULSE_ENABLE_UPLOADS') == '1'
 with st.sidebar:
-    st.markdown('### PORTFOLIO PULSE')
-    st.caption('A clear view of your investments.')
+    st.image(str(Path(__file__).parent/'assets/foliolens.svg'),width=48)
+    st.markdown('### FolioLens')
+    st.caption('Your investments, in focus.')
     st.divider()
-    st.markdown('**1 · Transaction export**')
-    if upload_enabled:
-        st.caption('Files are processed by this Streamlit server. Public security identifiers/tickers may be sent to price providers. Results are session-specific and temporary files are deleted after processing.')
-    else:
-        st.caption('This public release uses synthetic data. Private uploads are disabled pending approval of hosted market-data use.')
     upload_epoch = st.session_state.get('upload_epoch',0)
-    uploaded = st.file_uploader('Trade Republic transaction CSV',type=['csv'],disabled=not upload_enabled,key=f'upload_{upload_epoch}')
-    st.caption('UTF-8 CSV · up to 5 MB / 10,000 rows')
-    st.markdown('**2 · Benchmark**')
-    selection = st.selectbox('Compare with',['Global developed equities','Global all-country equities','No comparison'])
-    benchmark = {'Global developed equities':'IWDA.AS','Global all-country equities':'VWCE.DE','No comparison':None}[selection]
-    analyze = st.button('Analyze Portfolio',type='primary',use_container_width=True,disabled=not upload_enabled or uploaded is None)
-    demo = st.button('Try with Demo Portfolio',use_container_width=True)
+    uploaded = None
+    if upload_enabled:
+        st.markdown('**Transaction export**')
+        st.caption('Local personal-use workflow. This server processes files; security identifiers/tickers may be sent to price providers. Temporary files are deleted after processing.')
+        uploaded = st.file_uploader('Trade Republic transaction CSV',type=['csv'],key=f'upload_{upload_epoch}')
+        st.caption('UTF-8 CSV · up to 5 MB / 10,000 rows')
+    else:
+        st.caption('Public demo · real CSV analysis is available only in the documented local personal-use workflow.')
+        st.link_button('Local workflow documentation','https://github.com/nayakpranav/portfolio-pulse#run')
+    st.markdown('**Benchmark**')
+    options = ['MSCI World ETF (default)','Global All-Country ETF','S&P 500 ETF']
+    if upload_enabled: options.append('Custom benchmark ticker')
+    options.append('No comparison')
+    selection = st.selectbox('Compare with',options)
+    benchmark = dict(zip(options[:3],PRESETS)).get(selection)
+    custom_valid = True
+    if selection == 'Custom benchmark ticker':
+        custom = st.text_input('Provider-compatible ticker',placeholder='e.g. SXR8.DE',max_chars=32)
+        try:
+            benchmark = validate_ticker(custom)
+        except ValueError as exc:
+            custom_valid = False
+            if custom: st.error(str(exc))
+        st.caption('Requires reliable adjusted historical prices and EUR conversion. Invalid or incomplete data produces no comparison, with no substitute ticker.')
+    if not upload_enabled:
+        st.caption('ETF choices use explicitly defined synthetic illustrations, not the named securities historical performance. Custom tickers are local-only.')
+    analyze = st.button('Analyze Portfolio',type='primary',use_container_width=True,disabled=uploaded is None or not custom_valid) if upload_enabled else False
+    demo = st.button('Try with Demo Portfolio',type='secondary' if upload_enabled else 'primary',use_container_width=True,disabled=selection=='Custom benchmark ticker')
     if st.button('Clear session results',use_container_width=True):
         for key in ('model','pdf'):
             st.session_state.pop(key,None)
@@ -47,12 +67,13 @@ with st.sidebar:
     st.divider()
     st.caption('Independent, unofficial project. Not affiliated with Trade Republic. Analytical information, without buy/sell recommendations.')
 
-st.title('Portfolio Pulse')
-st.markdown('Your investments, performance and income at a glance.')
-if demo or analyze:
+st.title('FolioLens')
+st.markdown('Your investments, in focus.')
+start_demo = st.session_state.pop('start_demo',False)
+if demo or analyze or start_demo:
     # Remove stale results before a new run so a failed upload cannot show an old PDF.
     st.session_state.pop('model',None);st.session_state.pop('pdf',None)
-    data,prices = fixture() if demo else (uploaded.getvalue(),None)
+    data,prices = fixture() if demo or start_demo else (uploaded.getvalue(),None)
     try:
         with st.spinner('Reconstructing investments, income and matched performance…'):
             result = run_analysis(data,benchmark=benchmark,prices=prices)
@@ -65,9 +86,13 @@ if demo or analyze:
         st.error('The analysis could not finish safely. Check the export or try the synthetic demo.')
 
 if 'model' not in st.session_state:
-    st.info('Start with a transaction export or explore the synthetic demo portfolio.')
-    st.markdown('### Less noise. More understanding.')
-    st.write('See invested value, lifetime outcomes, returns and income together. Every figure has a scope explanation, and missing data stays visible.')
+    st.markdown('### See the story behind your investments.')
+    st.write('Explore performance, recognized investment income and a downloadable portfolio report in one clear view. Every figure includes its scope, and missing data stays visible.')
+    if not upload_enabled:
+        if st.button('Try with Demo Portfolio',type='primary',key='landing_demo'):
+            st.session_state['start_demo'] = True
+            st.rerun()
+        st.caption('The public demo uses fabricated transactions and prices. Real CSV analysis is available through the documented local personal-use workflow.')
     st.stop()
 
 model = st.session_state['model']; snap = model['snapshot']
@@ -77,7 +102,7 @@ with heading:
     tx = snap['latest_transaction_date']
     st.caption(f"{'SYNTHETIC DEMO · fabricated transactions and market prices · ' if model['raw']['synthetic'] else ''}Transactions to {tx:%d %b %Y}" if tx else 'Transaction cutoff unavailable')
 with download:
-    st.download_button('Download Portfolio Summary (PDF)',st.session_state['pdf'],file_name='Portfolio_Pulse_Summary.pdf',mime='application/pdf',use_container_width=True)
+    st.download_button('Download Portfolio Summary (PDF)',st.session_state['pdf'],file_name='FolioLens_Summary.pdf',mime='application/pdf',use_container_width=True)
 with st.expander('Data health and coverage'):
     if model['issues']:
         for issue in model['issues']:st.write('• '+issue)
@@ -99,10 +124,12 @@ st.caption('Stock/fund wealth · EUR · cash-flow-matched benchmark · excludes 
 nav = model['nav']
 if not nav.empty:
     columns = {'stockfund_value_eur':'Actual stock/fund wealth'}
-    if model['by_key']['benchmark'].value is not None:columns['benchmark_pme_value_eur']='Matched benchmark wealth'
+    if model['by_key']['benchmark'].value is not None:columns['benchmark_pme_value_eur']=model['raw']['benchmark_name']
     chart_data = nav[['date',*columns]].rename(columns=columns).melt('date',var_name='Series',value_name='Value')
-    chart = alt.Chart(chart_data).mark_line(strokeWidth=2.5).encode(x=alt.X('date:T',title=None),
-        y=alt.Y('Value:Q',title='EUR',scale=alt.Scale(zero=False)),color=alt.Color('Series:N',scale=alt.Scale(range=['#42cbea','#397df5']),legend=alt.Legend(orient='top',labelLimit=300)),
+    low, high = wealth_range(chart_data['Value'])
+    st.caption('Wealth in EUR · padded vertical range' + (' · axis does not start at zero' if low != 0 else ''))
+    chart = alt.Chart(chart_data).mark_line(strokeWidth=2.5).encode(x=alt.X('date:T',title='Date',axis=alt.Axis(format='%b %Y')),
+        y=alt.Y('Value:Q',title='Wealth (EUR)',scale=alt.Scale(domain=[low,high],zero=False,nice=False)),color=alt.Color('Series:N',title=None,scale=alt.Scale(range=['#42cbea','#397df5']),legend=alt.Legend(orient='top',direction='vertical',columns=1,labelLimit=320)),
         tooltip=['date:T','Series:N',alt.Tooltip('Value:Q',format=',.2f')]).properties(height=245)
     st.altair_chart(chart,use_container_width=True)
     if model['periods']:
@@ -114,7 +141,7 @@ else:st.info('Unavailable — data requires review. Historical stock/fund wealth
 income_col,holdings_col = st.columns([1.15,1])
 with income_col:
     st.markdown('### Investment Income')
-    st.caption(f"{snap['year']} actual net dividends + interest · outline/opacity marks partial months")
+    st.caption(f"{snap['year']} recognized net investment income (dividends + interest) · outline/opacity marks partial months")
     monthly = pd.DataFrame(snap['months'])
     chart = alt.Chart(monthly).mark_bar().encode(x=alt.X('label:N',sort=[m['label'] for m in snap['months']],title=None),
         y=alt.Y('total:Q',title='EUR'),color=alt.value('#397df5'),opacity=alt.Opacity('status:N',scale=alt.Scale(domain=['complete','partial','unavailable'],range=[1,.45,0]),legend=None),
@@ -144,4 +171,4 @@ with st.expander('Understanding Your Capital'):
         value=life.get(key)
         st.write(f'{label}: €{value:,.2f}' if value is not None and model['raw']['accounting_status']=='COMPLETE' else f'{label}: Unavailable — data requires review')
     st.write('Net user capital committed subtracts canonical recovery, including interest, from user-funded investment outflows. Recovery is a lifetime accounting measure, not freely withdrawable cash. Promotional funding changes user capital separately from economic profit.')
-st.caption('Portfolio Pulse · Independent analytical software · Missing values are never substituted with zero.')
+st.caption('FolioLens · Independent analytical software · Missing values are never substituted with zero.')

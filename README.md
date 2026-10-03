@@ -1,15 +1,15 @@
-# Portfolio Pulse
+# FolioLens
 
-Your investments, performance and income at a glance.
+Your investments, in focus.
 
 An independent, unofficial Streamlit application for Trade Republic transaction
 exports. A pinned V6.7.8 analytical core powers eight essential metrics, three
 charts, deterministic observations, contextual explanations and a private,
 one-page A4 landscape PDF.
 
-**Release status:** locally validated implementation. The public release defaults
+**Release status:** public synthetic demo. The public release defaults
 to a synthetic demo. Public CSV uploads remain disabled pending an approved
-hosted market-data arrangement. A public deployment has not yet been verified.
+hosted market-data arrangement. Public demo: https://foliolens-tr.streamlit.app/.
 See [release evidence](docs/VALIDATION.md) and [deployment](docs/DEPLOYMENT.md).
 
 ## Run
@@ -76,3 +76,19 @@ Read [methodology](docs/METHODOLOGY.md), [privacy](docs/PRIVACY.md) and
 [source/licensing notes](docs/LICENSING.md) before enabling uploads on a server.
 This project is not affiliated with or endorsed by Trade Republic. It is not a
 broker statement, tax certificate or personalized investment recommendation.
+
+## Benchmarks
+
+MSCI World ETF (`IWDA.AS`, default), Global All-Country ETF (`VWCE.DE`),
+S&P 500 ETF (`SXR8.DE`), or no comparison. Demo selections use separate
+explicit synthetic EUR curves (100 to 109, 108, and 112 respectively,
+6 January 2025 to 30 September 2026, business-day linear interpolation).
+They illustrate matched-flow PME and do not represent real ETF performance.
+No public demo market-data requests are made.
+
+The enabled local workflow accepts a provider-compatible custom ticker.
+Syntax is checked before processing; provider history, adjusted prices, currency
+and FX coverage must validate. Failure leaves the benchmark unavailable without
+substituting a ticker. Wealth charts use a padded EUR axis, minimum 5% span,
+and a visible nonzero-axis notice. Recognized net investment income includes
+reinvested dividends once and is not necessarily cash received in the account.

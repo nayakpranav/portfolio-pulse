@@ -31,6 +31,7 @@ def number(value):
 def prepare(result, report_date=None):
     report_date = report_date or date.today()
     life, advanced, historical = (result[k] for k in ('lifetime_metrics','advanced_metrics','historical_metrics'))
+    benchmark_label = result.get('benchmark_name', 'Selected benchmark')
     blocked = result['accounting_status'] != 'COMPLETE'
     snapshot = build_snapshot_data(dividends=pd.DataFrame(result['dividends']),interest=pd.DataFrame(result['interest']),
         holdings=pd.DataFrame(result['holdings']),daily_nav=pd.DataFrame(result['daily_nav_history']),
@@ -58,11 +59,11 @@ def prepare(result, report_date=None):
          'Canonical investment-sale, settlement and recognized income recovery, including interest. Helps distinguish capital recovery from profit; reinvestment and non-cash legs follow core semantics and this is not withdrawable account cash.'),
         ('mwr','Stock/Fund MWR',advanced.get('stock_fund_mwr_acquisition_pct'),'Annualized · actual dated stock/fund flows',
          'Annualized return including the timing and size of actual stock/fund cash flows. Useful for your invested experience; excludes derivatives and interest and can be unavailable or ambiguous.'),
-        ('benchmark','Benchmark MWR',historical.get('benchmark_mwr_pct'),'Annualized · matched stock/fund cash flows',
+        ('benchmark','Benchmark MWR',historical.get('benchmark_mwr_pct'),f'{benchmark_label} · annualized matched flows',
          'Annualized return of the selected benchmark using matched investment cash flows. Supports a comparable reference; depends on benchmark prices and is not ordinary price appreciation.'),
         ('twr','Stock/Fund TWR',historical.get('stockfund_twr_since_inception_pct'),'Cumulative · reconstructed stock/fund sleeve',
          'Cumulative return with the core end-of-day cash-flow adjustment. Helps separate timing from portfolio performance; excludes cash and derivatives and depends on historical price coverage.'),
-        ('income','Net Investment Income YTD',snapshot['ytd_income'],f'{snapshot["year"]} receipts · source cutoff respected',
+        ('income','Net Investment Income YTD',snapshot['ytd_income'],f'{snapshot["year"]} recognized net investment income · source cutoff respected',
          'Recognized net dividends plus net interest in the reporting year. Shows actual investment income; excludes sales, gains, transfers and SaveBack. Reinvested dividend income is recognized once and uncovered months are not zero.'),
     ]
     metrics = []
@@ -100,7 +101,7 @@ def prepare(result, report_date=None):
     elif historical.get('historical_analytics_status') == 'OK_WITH_LOW_CONFIDENCE_FALLBACK':
         issues.append('Historical returns include transaction or filled-price estimates; interpret with caution.')
     if result['benchmark_enabled'] and by_key['benchmark'].value is None:
-        issues.append('Benchmark comparison is unavailable or lacks a comparable valuation period.')
+        issues.append(f'{benchmark_label}: comparison unavailable; reliable adjusted prices, currency/FX and matched-date coverage are required.')
     if income_blocked:
         issues.append('Recognized income contains an unresolved amount or reconciliation issue.')
     if blocked:
@@ -109,7 +110,7 @@ def prepare(result, report_date=None):
     insights = []
     if by_key['mwr'].value is not None and by_key['benchmark'].value is not None:
         difference = by_key['mwr'].value-by_key['benchmark'].value
-        insights.append(f'Stock/fund annualized MWR is {abs(difference):.2f} percentage points {"above" if difference >= 0 else "below"} the cash-flow-matched benchmark.')
+        insights.append(f'Stock/fund annualized MWR is {abs(difference):.2f} percentage points {"above" if difference >= 0 else "below"} the cash-flow-matched {benchmark_label}.')
     if by_key['profit'].value is not None:
         contributors = [r for r in result['wealth_contribution'] if r.get('instrument_type') != 'INTEREST' and number(r.get('economic_contribution_eur')) is not None]
         for positive in (True,False):

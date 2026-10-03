@@ -29,5 +29,19 @@
   "benchmark": {
     "start": 100,
     "end": 109
+  },
+  "benchmarks": {
+    "IWDA.AS": {
+      "start": 100,
+      "end": 109
+    },
+    "VWCE.DE": {
+      "start": 100,
+      "end": 108
+    },
+    "SXR8.DE": {
+      "start": 100,
+      "end": 112
+    }
   }
 }

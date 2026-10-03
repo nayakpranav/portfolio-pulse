@@ -65,7 +65,26 @@ Local CSV analysis retains live-provider failure/coverage states. Open derivativ
 quotes, forecasts and optional sector fetching are disabled. Additional server
 resource/rate limits and licensed provider review are required before public uploads.
 
-**No public deployment is claimed or verified.** The browser-control helper failed
-before opening the authenticated Community Cloud console. See `DEPLOYMENT.md` for
-the exact account authorization, deployment and post-deployment test checklist.
-This remaining boundary prevents declaring the user's entire project complete.
+## First public-demo refinement (4 October 2026)
+
+FolioLens branding, original self-contained SVG/PNG mark, demo-first landing,
+three explicit synthetic benchmark illustrations and no comparison, local-only
+custom ticker validation, and shared padded wealth-chart ranges are implemented.
+Income wording describes recognized net investment income, including reinvestment.
+
+The complete safe suite covers 48 checks, including all existing synthetic
+scenarios, four benchmark modes, invalid/custom ticker boundaries, adjusted-price
+and historical-coverage failures, provider failure without substitution, missing
+currency, reliable/missing FX, local custom input and the public landing action.
+All 126 retained canonical definitions match V6.7.8. Nine synthetic reference
+scenarios match exactly at unrounded canonical JSON/status/provenance level.
+No vendor files or original repository/deployment were changed.
+
+Local browser checks at 1440px and 390px cover eight metrics, three charts, all
+public benchmark modes, one-page PDF download and clearing session results.
+Independent-session isolation remains covered by the full suite. The final PDF
+was rendered and visually reviewed for axis/date labels, benchmark identification,
+income terminology and clipping. Artifacts and screenshots remain Git-ignored.
+
+Public deployment verification is performed after pushing this release; its
+record is added below once the deployed revision has been exercised.

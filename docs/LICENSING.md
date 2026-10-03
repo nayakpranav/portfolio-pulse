@@ -1,7 +1,7 @@
 # Source and market-data licensing
 
 The owner explicitly authorized selection, reuse, publication and independent
-deployment of the supplied V6.7.8 source for Portfolio Pulse in this assignment.
+deployment of the supplied V6.7.8 source for FolioLens in this assignment.
 The supplied source package otherwise carries a private-use restriction. That
 restriction must not be interpreted as permission to publish the original package,
 its personal registry, data/artifacts or historical repository.

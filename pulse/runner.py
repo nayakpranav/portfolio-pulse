@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from pulse.benchmarks import PRESETS, validate_ticker, benchmark_name
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_BYTES = 5 * 1024 * 1024
@@ -60,8 +61,15 @@ def validate_upload(data):
         raise AnalysisError('The file must be a valid UTF-8 CSV.') from None
 
 def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=120, engine_path=None):
-    if benchmark not in {'IWDA.AS','VWCE.DE',None}:
-        raise AnalysisError('Choose one of the supported benchmarks or disable comparison.')
+    if benchmark is not None:
+        try:
+            benchmark = validate_ticker(benchmark)
+        except ValueError as exc:
+            raise AnalysisError(str(exc)) from None
+        if prices is not None and benchmark not in prices.get('benchmarks', {'IWDA.AS': prices.get('benchmark')}):
+            raise AnalysisError('This benchmark has no explicitly defined synthetic data. Custom tickers are local personal-use only.')
+        if prices is None and benchmark not in PRESETS and os.environ.get('PULSE_ENABLE_UPLOADS') != '1':
+            raise AnalysisError('Custom benchmarks require the explicitly enabled local personal-use workflow.')
     validate_upload(data)
     started = time.perf_counter()
     with analysis_workspace() as work:
@@ -80,7 +88,7 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=120, engine_
                    '--input-csv',str(work/'input.csv'),'--output-root',str(work/'engine'),
                    '--manifest',str(work/'manifest.json'),'--no-enable-dividend-growth',
                    '--no-enable-derivative-quotes','--benchmark-ticker',benchmark or 'IWDA.AS',
-                   '--benchmark-name',{'IWDA.AS':'Global developed equities','VWCE.DE':'Global all-country equities'}.get(benchmark,'Comparison disabled'),
+                   '--benchmark-name',benchmark_name(benchmark, prices is not None),
                    '--no-export-raw','--no-export-redacted']
         kwargs = {'creationflags':subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {}
         try:
@@ -93,4 +101,6 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=120, engine_
     result['runtime_seconds'] = time.perf_counter()-started
     result['synthetic'] = prices is not None
     result['benchmark_enabled'] = benchmark is not None
+    result['benchmark_name'] = benchmark_name(benchmark, prices is not None)
+    result['benchmark_ticker'] = benchmark
     return result

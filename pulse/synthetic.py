@@ -48,4 +48,4 @@ def fixture(kind='demo'):
     securities = {f'ZZ00000000{i:02d}': {'start':20*i,'end':20*i*(1.15 if i % 2 else .94)} for i in range(1,count+1)}
     if kind == 'missing_price':
         securities['ZZ0000000001']['missing'] = True
-    return output.getvalue().encode(), {'asof':'2026-09-30','securities':securities,'benchmark':{'start':100,'end':109}}
+    return output.getvalue().encode(), {'asof':'2026-09-30','securities':securities,'benchmark':{'start':100,'end':109},'benchmarks':{'IWDA.AS':{'start':100,'end':109},'VWCE.DE':{'start':100,'end':108},'SXR8.DE':{'start':100,'end':112}}}
