@@ -1,0 +1,5 @@
+datetime,date,account_type,category,type,asset_class,name,symbol,shares,price,amount,fee,tax,currency,original_amount,original_currency,fx_rate,description,transaction_id,counterparty_name,counterparty_iban,payment_reference,mcc_code
+2025-01-06T10:00:00Z,2025-01-06,SECURITIES,TRADING,BUY,STOCK,Synthetic Company 1,ZZ0000000001,11,20,-220,-1,,EUR,,,,BUY synthetic security,synthetic-derivatives-0,,,,
+2026-01-12T10:00:00Z,2026-01-12,SECURITIES,TRADING,BUY,DERIVATIVE,Synthetic Company 7,ZZ0000000007,2,5,-10,-1,,EUR,,,,BUY synthetic security,synthetic-derivatives-1,,,,
+2026-02-12T10:00:00Z,2026-02-12,SECURITIES,TRADING,SELL,DERIVATIVE,Synthetic Company 7,ZZ0000000007,2,7,14,-1,,EUR,,,,SELL synthetic security,synthetic-derivatives-2,,,,
+2026-09-30T10:00:00Z,2026-09-30,SECURITIES,CASH,CUSTOMER_INBOUND,,Synthetic Company 1,ZZ0000000001,,,1,,,EUR,,,,CUSTOMER_INBOUND synthetic security,synthetic-derivatives-3,,,,

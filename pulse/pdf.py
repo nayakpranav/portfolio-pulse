@@ -1,0 +1,106 @@
+"""Pulse composition using the validated V6.7.8 vector primitives and data builder."""
+from io import BytesIO
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.pdfgen import canvas
+from pulse import core
+from investment_snapshot_pdf import (_panel,_label,_truncate,_holding_name_lines,_kpi_icon,
+    BG,WHITE,MUTED,CYAN,BLUE,GREEN,AMBER,GRID)
+
+def ascii_text(value):
+    return str(value).replace('€','EUR ').replace('—','-').replace('–','-').encode('latin-1','replace').decode('latin-1')
+
+def summary_pdf(model):
+    data = model['snapshot']
+    output = BytesIO()
+    c = canvas.Canvas(output,pagesize=landscape(A4),pageCompression=1)
+    c.setTitle('Portfolio Pulse | Portfolio Summary')
+    c.setAuthor('Portfolio Pulse')
+    c.setSubject('Private analytical summary; unofficial and not a tax statement')
+    w,h = landscape(A4)
+    c.setFillColor(BG); c.rect(0,0,w,h,fill=1,stroke=0)
+    _label(c,'PORTFOLIO PULSE',28,h-37,22,WHITE,'Helvetica-Bold')
+    _label(c,'Your investments, performance and income at a glance.',29,h-53,9,MUTED)
+    _label(c,f"{'SYNTHETIC DEMO | ' if model['raw']['synthetic'] else ''}{model['health'].upper()}",w-28,h-28,8,CYAN,align='right')
+    tx = data['latest_transaction_date']; vd = data['valuation_date']
+    _label(c,f"Generated {data['report_date']:%d %b %Y} | Transactions to {tx:%d %b %Y}" if tx else 'Transaction cutoff unavailable',w-28,h-44,7,MUTED,align='right')
+    _label(c,f'Stock/fund history to {vd:%d %b %Y}' if vd else 'Historical valuation unavailable',w-28,h-57,7,MUTED,align='right')
+    card_w = (w-74)/4
+    for i,metric in enumerate(model['metrics'][:4]):
+        x = 28+i*(card_w+6); y=h-143
+        _panel(c,x,y,card_w,69)
+        _kpi_icon(c,i,x+card_w-19,y+44,CYAN)
+        _label(c,metric.label.upper(),x+10,y+53,6.5,MUTED,'Helvetica-Bold')
+        _label(c,ascii_text(metric.display),x+10,y+28,17 if metric.value is not None else 12,WHITE,'Helvetica-Bold')
+        _label(c,_truncate(ascii_text(metric.scope),card_w-20,6),x+10,y+10,6,MUTED)
+    for i,metric in enumerate(model['metrics'][4:]):
+        x=28+i*(card_w+6)
+        _label(c,metric.label.upper(),x+2,h-165,6.7,MUTED,'Helvetica-Bold')
+        _label(c,ascii_text(metric.display),x+2,h-187,15,GREEN if metric.value is not None else AMBER,'Helvetica-Bold')
+        _label(c,'Cumulative' if metric.key=='twr' else f"{data['year']} net receipts" if metric.key=='income' else 'Annualized',x+2,h-202,7,MUTED)
+    # Main matched-wealth panel, retaining gaps rather than drawing through missing values.
+    px,py,pw,ph=28,199,478,170
+    _panel(c,px,py,pw,ph)
+    _label(c,'STOCK/FUND WEALTH VS MATCHED BENCHMARK',px+12,py+ph-20,9,WHITE,'Helvetica-Bold')
+    _label(c,'Cash and derivatives excluded | EUR',px+12,py+ph-35,7,MUTED)
+    nav=model['nav']
+    series=[]
+    for column,color,label in [('stockfund_value_eur',CYAN,'Actual'),('benchmark_pme_value_eur',BLUE,'Matched benchmark')]:
+        if column in nav and (column!='benchmark_pme_value_eur' or model['by_key']['benchmark'].value is not None):
+            series.append((list(nav[column]),color,label))
+    values=[float(v) for seq,_,_ in series for v in seq if v is not None and v==v]
+    if values:
+        low=min(0,min(values)); high=max(values) or 1
+        gx,gy,gw,gh=px+41,py+37,pw-58,ph-87
+        for frac in (0,.5,1):
+            y=gy+gh*frac;c.setStrokeColor(GRID);c.setLineWidth(.3);c.line(gx,y,gx+gw,y)
+            _label(c,f'{low+(high-low)*frac:,.0f}',gx-5,y-2,6,MUTED,align='right')
+        for j,(seq,color,label) in enumerate(series):
+            c.setStrokeColor(color);c.setLineWidth(1.6);previous=None
+            for k,v in enumerate(seq):
+                if v is None or v!=v: previous=None;continue
+                point=(gx+gw*k/max(len(seq)-1,1),gy+gh*(float(v)-low)/(high-low))
+                if previous:c.line(*previous,*point)
+                previous=point
+            _label(c,label,px+42+j*150,py+17,7,color)
+    else:
+        _label(c,'Unavailable - data requires review',px+30,py+78,10,AMBER)
+    # Canonical monthly amounts and status markers; no forecast or uncovered zeros.
+    ix,iy,iw,ih=514,199,w-542,170
+    _panel(c,ix,iy,iw,ih)
+    _label(c,f"NET INVESTMENT INCOME | {data['year']}",ix+12,iy+ih-20,9,WHITE,'Helvetica-Bold')
+    _label(c,'Actual dividends + interest; outline = partial',ix+12,iy+ih-35,6.8,MUTED)
+    months=data['months'];scale=max([abs(m['total']) for m in months if m['total'] is not None] or [1]) or 1
+    gx,gy,gw,gh=ix+15,iy+42,iw-30,ih-91
+    signed=any(m['total'] is not None and m['total']<0 for m in months)
+    baseline=gy+gh/2 if signed else gy
+    c.setStrokeColor(GRID);c.setLineWidth(.4);c.line(gx,baseline,gx+gw,baseline)
+    for j,m in enumerate(months):
+        x=gx+j*gw/12; val=m['total']
+        if val is not None:
+            height=abs(val)/scale*gh*(.5 if signed else 1)
+            c.setFillColor(BLUE);c.setStrokeColor(AMBER if m['status']=='partial' else BLUE)
+            c.rect(x+2,baseline if val>=0 else baseline-height,gw/12-4,max(height,.6),stroke=1,fill=m['status']=='complete')
+        else:
+            _label(c,'-',x+gw/24,gy+4,6,MUTED,align='center')
+        _label(c,m['label'][0],x+gw/24,gy-11,6,MUTED,align='center')
+    _label(c,'Uncovered months: - | Net income only',ix+14,iy+16,6.5,MUTED)
+    # Compact holdings strip with the canonical valued-stock/fund denominator.
+    _label(c,'LARGEST VALUED STOCK/FUND HOLDINGS',28,181,8,WHITE,'Helvetica-Bold')
+    _label(c,'Weights use valued stock/fund assets; no constituent look-through.',28,168,6.8,MUTED)
+    for i,r in enumerate(data['top_holdings'][:5]):
+        x=28+i*(w-56)/5;tile_w=(w-56)/5-6
+        _panel(c,x,103,tile_w,55)
+        _label(c,str(i+1),x+9,143,8,CYAN,'Helvetica-Bold')
+        for j,line in enumerate(_holding_name_lines(ascii_text(r['name']),tile_w-31,6.7)):
+            _label(c,line,x+24,143-j*8,6.7,WHITE)
+        _label(c,f"EUR {r['value']:,.2f}  |  {r['weight_pct']:.1f}%",x+10,114,7,MUTED)
+    if not data['top_holdings']:
+        _label(c,'No supported holding ranking available.',28,126,9,AMBER)
+    observation = model['insights'][0]
+    _label(c,_truncate(ascii_text(observation),w-58,7.2),29,87,7.2,CYAN)
+    if model['issues']:
+        _label(c,_truncate('Data health: '+ascii_text('; '.join(model['issues'][:2])),w-58,6.5),29,73,6.5,AMBER)
+    _label(c,'Tracked value/profit may include derivatives; returns and holdings cover stocks/funds. Recovery is not withdrawable cash.',29,48,6.4,MUTED)
+    _label(c,'Unofficial independent analysis. Not affiliated with Trade Republic. Not a tax certificate or investment recommendation.',29,35,6.4,MUTED)
+    c.showPage();c.save()
+    return output.getvalue()

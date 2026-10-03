@@ -1,0 +1,14 @@
+{
+  "asof": "2026-09-30",
+  "securities": {
+    "ZZ0000000001": {
+      "start": 20,
+      "end": 23.0,
+      "missing": true
+    }
+  },
+  "benchmark": {
+    "start": 100,
+    "end": 109
+  }
+}

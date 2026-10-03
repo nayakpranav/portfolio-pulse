@@ -1,0 +1,9 @@
+streamlit==1.65.0
+pandas==3.0.6
+numpy==2.5.3
+requests==2.34.2
+reportlab==4.5.1
+yfinance==1.7.0
+beautifulsoup4==4.15.0
+altair==6.3.0
+tzdata==2026.5

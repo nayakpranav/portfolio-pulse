@@ -1,0 +1,3 @@
+datetime,date,account_type,category,type,asset_class,name,symbol,shares,price,amount,fee,tax,currency,original_amount,original_currency,fx_rate,description,transaction_id,counterparty_name,counterparty_iban,payment_reference,mcc_code
+2025-01-06T10:00:00Z,2025-01-06,SECURITIES,TRADING,BUY,STOCK,Synthetic Company 1,ZZ0000000001,11,20,-220,-1,,EUR,,,,BUY synthetic security,synthetic-missing_price-0,,,,
+2026-09-30T10:00:00Z,2026-09-30,SECURITIES,CASH,CUSTOMER_INBOUND,,Synthetic Company 1,ZZ0000000001,,,1,,,EUR,,,,CUSTOMER_INBOUND synthetic security,synthetic-missing_price-1,,,,
