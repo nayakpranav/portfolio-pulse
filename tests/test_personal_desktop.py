@@ -56,3 +56,11 @@ def test_frozen_worker_failure_does_not_expose_exception(monkeypatch,capsys):
     assert error.value.code==1
     captured=capsys.readouterr()
     assert not captured.out and not captured.err
+
+def test_hot_deployment_refreshes_old_private_helper(monkeypatch):
+    import pulse.private_config as module
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.delattr(module,'personal_defaults')
+    app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'streamlit_app.py'),default_timeout=30).run()
+    assert not app.exception
+    assert hasattr(module,'personal_defaults')

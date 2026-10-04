@@ -7,6 +7,11 @@ from pathlib import Path
 from pulse.benchmarks import PRESETS, validate_ticker
 from pulse.charts import wealth_range
 from pulse.mode import uploads_enabled, mode
+# A hot deployment can rerun this file before refreshing imported helper modules.
+import importlib
+import pulse.private_config as _private_config
+if not hasattr(_private_config,'personal_defaults'):
+    importlib.reload(_private_config)
 from pulse.private_config import event_candidates,export_digest,load_private_config,personal_defaults
 from pulse.runner import validate_upload
 import json
