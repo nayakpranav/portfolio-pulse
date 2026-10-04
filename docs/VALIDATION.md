@@ -303,7 +303,7 @@ unrestricted real uploads and unapproved derivative scrapers remain disabled.
 
 ## FolioLens Personal v1.0.5
 
-The full repository-safe suite passes **165 tests**. Fifteen added presentation
+The full repository-safe suite passes **166 tests**. Fifteen added presentation
 checks cover the common wealth range, exact benchmark aliases, circular rankings,
 relative bars, negative chart observations/income, zero income, empty holdings,
 and extreme names/amounts. Both selected scopes in the existing report matrix
@@ -342,3 +342,10 @@ package. The installed version is checked through the existing desktop shortcut,
 with loopback-only listening and automatic private event recognition. Public
 uploads remain disabled and no derivative scraper or financial methodology is
 changed. The Holy Grail reference source and repository remain read-only.
+
+
+A hot-deployment regression additionally replaces cached chart/card/PDF/HTML
+helpers with obsolete versions. The app refreshes presentation helpers before
+importing new names and regenerates both reports together. This fixes the
+observed Streamlit Cloud cached-helper ImportError without changing accounting
+or restarting a user's prepared analysis.

@@ -4,12 +4,16 @@ from zoneinfo import ZoneInfo
 import os
 import re
 from pathlib import Path
+import importlib
+import pulse.charts as _charts
+if getattr(_charts,'CHART_SCHEMA_VERSION',0)!=2:importlib.reload(_charts)
+import pulse.reporting as _reporting
+if getattr(_reporting,'PRESENTATION_SCHEMA_VERSION',0)!=2:importlib.reload(_reporting)
 from pulse.benchmarks import PRESETS, validate_ticker
 from pulse.charts import wealth_range, benchmark_alias
 from pulse.design import STREAMLIT_CSS
 from pulse.mode import uploads_enabled, mode
 # A hot deployment can rerun this file before refreshing imported helper modules.
-import importlib
 import pulse.private_config as _private_config
 if not hasattr(_private_config,'personal_defaults') or getattr(_private_config,'CONFIG_SCHEMA_VERSION',0)!=3:
     importlib.reload(_private_config)

@@ -3,6 +3,7 @@ from html import escape
 from pulse.adapter import number
 from pulse.design import COLORS, CSS_TOKENS
 
+PRESENTATION_SCHEMA_VERSION = 2
 MINT = COLORS['mint']
 HOLDING_CSS = CSS_TOKENS+'''.holding-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0 24px;align-items:stretch}
 .holding-card{background:#112238;border:1px solid #24415e;border-radius:12px;padding:18px;display:flex;flex-direction:column;min-width:0}

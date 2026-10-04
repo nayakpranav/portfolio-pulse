@@ -209,3 +209,30 @@ def test_one_reconciled_ipo_does_not_hide_other_zero_cost_buys(report_results):
     from pulse.reporting import warning_summary
     raw['trade_amount_audit'].update(missing_count=2,quantity_price_inferred=1)
     assert 'other missing amounts still require source review' in warning_summary(prepare(raw,date(2026,10,4)))
+
+
+
+def test_hot_deployment_refreshes_presentation_helpers_and_paired_reports(report_results,monkeypatch):
+    from streamlit.testing.v1 import AppTest
+    import pulse.charts as charts
+    import pulse.reporting as reporting
+    import pulse.html_report as exported_html
+    import pulse.pdf as exported_pdf
+    monkeypatch.setenv('FOLIOLENS_MODE','public_demo')
+    monkeypatch.delattr(charts,'benchmark_alias')
+    monkeypatch.setattr(charts,'CHART_SCHEMA_VERSION',0)
+    monkeypatch.setattr(charts,'wealth_range',lambda values:(-1,2))
+    monkeypatch.setattr(reporting,'PRESENTATION_SCHEMA_VERSION',0)
+    monkeypatch.setattr(reporting,'holding_cards',lambda rows:'stale holding presentation')
+    monkeypatch.setattr(exported_html,'HTML_SCHEMA_VERSION',1)
+    monkeypatch.setattr(exported_pdf,'PDF_SCHEMA_VERSION',3)
+    model=prepare(deepcopy(report_results['demo']),date(2026,10,4))
+    app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'streamlit_app.py'))
+    for key,value in dict(model=model,pdf=b'old',html=b'old',export_schema=(3,1)).items():app.session_state[key]=value
+    app.run();assert not app.exception
+    assert charts.wealth_range([0,100])[0]==0
+    assert charts.benchmark_alias(model).startswith('Synthetic MSCI World ETF')
+    assert 'stale holding presentation' not in app.session_state['html'].decode()
+    assert 'width:32px' in app.session_state['html'].decode()
+    assert app.session_state['export_schema']==(4,2)
+    assert len(app.metric)==8 and app.session_state['pdf'].startswith(b'%PDF')

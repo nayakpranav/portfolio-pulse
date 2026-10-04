@@ -1,6 +1,8 @@
 """Shared presentation range; never changes the underlying wealth series."""
 import math
 
+CHART_SCHEMA_VERSION = 2
+
 def wealth_range(values):
     finite = [float(v) for v in values if v is not None and math.isfinite(float(v))]
     if not finite:
