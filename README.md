@@ -12,6 +12,10 @@ to a synthetic demo. Public CSV uploads remain disabled pending an approved
 hosted market-data arrangement. Public demo: https://foliolens-tr.streamlit.app/.
 See [release evidence](docs/VALIDATION.md) and [deployment](docs/DEPLOYMENT.md).
 
+The v1.0.5 presentation uses two KPI tiers, prominent holding rankings and a
+consistent navy/cyan/mint identity across dashboard, PDF and offline HTML.
+[Report design and scope](docs/REPORTS.md).
+
 ## Windows one-click personal application
 
 Download the generic Windows portable package from [Releases](https://github.com/nayakpranav/portfolio-pulse/releases), extract it and double-click **Open FolioLens Personal.exe**. No Python installation or terminal commands are needed. The browser opens automatically; use the small launcher window to close the local application. [Windows instructions](docs/WINDOWS_PERSONAL.md).

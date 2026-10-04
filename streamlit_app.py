@@ -5,7 +5,8 @@ import os
 import re
 from pathlib import Path
 from pulse.benchmarks import PRESETS, validate_ticker
-from pulse.charts import wealth_range
+from pulse.charts import wealth_range, benchmark_alias
+from pulse.design import STREAMLIT_CSS
 from pulse.mode import uploads_enabled, mode
 # A hot deployment can rerun this file before refreshing imported helper modules.
 import importlib
@@ -24,9 +25,11 @@ from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
 if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=3:importlib.reload(_adapter)
-if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=3:importlib.reload(_pdf)
+if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=4:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
+import pulse.html_report as _html_report
+if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=2:importlib.reload(_html_report)
 from pulse.html_report import html_report, HTML_SCHEMA_VERSION
 from pulse.reporting import HOLDING_CSS, holding_cards
 
@@ -37,15 +40,7 @@ def store_reports(model):
                             export_schema=(_pdf.PDF_SCHEMA_VERSION,HTML_SCHEMA_VERSION))
 
 st.set_page_config(page_title='FolioLens',page_icon=str(Path(__file__).parent/'assets/favicon.png'),layout='wide')
-st.markdown('''<style>
-.block-container{max-width:1300px;padding-top:2rem;padding-bottom:2rem}
-h1{letter-spacing:-1.5px} [data-testid="stMetric"]{background:#112238;border:1px solid #24415e;border-radius:12px;padding:16px}
-[data-testid="stMetricValue"]{font-size:1.7rem} [data-testid="stMetricLabel"]{font-size:.9rem}
-[data-testid="stSidebar"]{border-right:1px solid #24415e}
-.period-performance{border:1px solid #24415e;background:#112238;border-radius:12px;padding:18px;margin:10px 0}
-.period-performance strong{display:block;font-size:2rem;color:#42cbea;line-height:1.35}
-@media(max-width:600px){.block-container{padding:1rem}[data-testid="stMetricValue"]{font-size:1.4rem}}
-</style>''',unsafe_allow_html=True)
+st.markdown('<style>'+STREAMLIT_CSS+'</style>',unsafe_allow_html=True)
 st.markdown('<style>'+HOLDING_CSS+'</style>',unsafe_allow_html=True)
 
 upload_enabled = uploads_enabled()
@@ -223,32 +218,37 @@ if upload_enabled and not model['raw']['synthetic'] and model['dependencies']['m
         st.text_area('Dated manual derivative EUR prices (JSON)',key='manual_quotes',placeholder='{"ISIN": {"price_eur": 1.25, "date": "YYYY-MM-DD", "source": "Broker bid"}}')
 
 for offset in (0,4):
-    columns = st.columns(4)
-    for column,metric in zip(columns,model['metrics'][offset:offset+4]):
-        with column:
-            st.metric(metric.label,metric.display,help=metric.explanation)
-            st.caption(metric.scope)
-            if metric.value is None:
-                st.caption(metric.status.replace('_',' ').capitalize() if metric.status!='DISABLED' else 'Comparison disabled')
+    with st.container(key='primary_kpis' if offset==0 else 'secondary_kpis'):
+        columns = st.columns(4)
+        for column,metric in zip(columns,model['metrics'][offset:offset+4]):
+            with column:
+                st.metric(metric.label,metric.display,help=metric.explanation)
+                st.caption(metric.scope)
+                if metric.value is None:
+                    st.caption(metric.status.replace('_',' ').capitalize() if metric.status!='DISABLED' else 'Comparison disabled')
 
 st.markdown('### Portfolio versus Benchmark')
 st.caption(model.get('returns_scope_label','Stocks & funds')+' wealth · EUR · cash-flow-matched benchmark · excludes cash and derivatives')
 nav = model['nav']
 if not nav.empty:
     columns = {'stockfund_value_eur':'Actual stock/fund wealth'}
-    if model['by_key']['benchmark'].value is not None:columns['benchmark_pme_value_eur']=model['raw']['benchmark_name']
+    if model['by_key']['benchmark'].value is not None:columns['benchmark_pme_value_eur']=benchmark_alias(model)
     chart_data = nav[['date',*columns]].rename(columns=columns).melt('date',var_name='Series',value_name='Value')
     low, high = wealth_range(chart_data['Value'])
     st.caption('Wealth in EUR · padded vertical range' + (' · axis does not start at zero' if low != 0 else ''))
     names=list(columns.values())
-    chart = alt.Chart(chart_data).mark_line(strokeWidth=2.8).encode(x=alt.X('date:T',title='Date',axis=alt.Axis(format='%b %Y',tickCount=6)),
+    chart = alt.Chart(chart_data).mark_line().encode(x=alt.X('date:T',title='Date',axis=alt.Axis(format='%b %Y',tickCount=6)),
         y=alt.Y('Value:Q',title='Wealth (EUR)',scale=alt.Scale(domain=[low,high],zero=False,nice=False)),color=alt.Color('Series:N',title=None,scale=alt.Scale(domain=names,range=['#42cbea','#397df5']),legend=alt.Legend(orient='top',direction='vertical',columns=1,labelLimit=320)),
         strokeDash=alt.StrokeDash('Series:N',scale=alt.Scale(domain=names,range=[[1,0],[7,4]]),legend=None),
+        size=alt.Size('Series:N',scale=alt.Scale(domain=names,range=[3,2.3]),legend=None),
         tooltip=['date:T','Series:N',alt.Tooltip('Value:Q',format=',.2f')]).properties(height=330)
     st.altair_chart(chart,use_container_width=True)
     last=nav.iloc[-1]
     st.caption('Endpoint wealth · '+ ' · '.join(f"{name}: €{float(last[col]):,.2f}" for col,name in columns.items() if pd.notna(last[col])))
 else:st.info('Unavailable — data requires review. Historical stock/fund wealth cannot be presented reliably.')
+with st.expander('Benchmark identity and comparison'):
+    st.text(model['raw'].get('benchmark_name','No comparison'))
+    st.caption('Exact selected instrument · EUR conversion · cash-flow-matched benchmark MWR. The chart legend uses a concise alias; the instrument and calculations are unchanged.')
 
 st.markdown('### Cumulative Period Performance')
 period = st.segmented_control('Cumulative period TWR',['1M','3M','YTD','1Y','MAX'],default='MAX',key='twr_period')
@@ -258,7 +258,7 @@ st.markdown(f'<div class="period-performance">{period or "Select a period"} · C
 if selected:
     st.caption(f"{period} cumulative stock/fund TWR: {selected['portfolio_twr_pct']:.2f}% · {pd.Timestamp(selected['effective_start_date']):%d %b %Y} to {pd.Timestamp(selected['end_date']):%d %b %Y}")
 else:st.caption('This period lacks reliable observations or accounting coverage. Missing performance is not zero.')
-st.caption('Cumulative TWR adjusts for cash flows across the selected period. MWR is annualized; the headline TWR covers the full available history. Cash and derivatives are excluded.')
+st.caption('Cumulative TWR adjusts for cash flows across the selected period. MWR is annualized; the headline TWR covers the full available history. Cash and derivatives are excluded. Period controls change TWR only; the wealth chart retains its full available history.')
 
 income_col,holdings_col = st.columns([1.15,1])
 with income_col:
@@ -286,7 +286,7 @@ with holdings_col:
         st.dataframe(pd.DataFrame(model['holdings']).rename(columns={'name':'Holding','quantity':'Quantity','value':'Value EUR','quote_date':'Quote date','status':'Valuation'}),hide_index=True,use_container_width=True)
 
 st.markdown('### Your Five Largest Holdings')
-st.caption('Valued stocks/funds · cash and derivatives excluded · weights have no constituent look-through')
+st.caption('Valued stocks/funds · no constituent look-through. Thin bars show size relative to the largest holding; percentages show allocation.')
 st.markdown(holding_cards(snap['top_holdings']),unsafe_allow_html=True)
 st.markdown('### What Stands Out?')
 for insight in model['insights']:

@@ -299,3 +299,46 @@ markers are absent. Public-source and reachable-history audits find no private
 records. Linux regressions and Windows packaging/report smoke tests run in CI
 using synthetic data only. The public application remains a synthetic demo;
 unrestricted real uploads and unapproved derivative scrapers remain disabled.
+
+
+## FolioLens Personal v1.0.5
+
+The full repository-safe suite passes **165 tests**. Fifteen added presentation
+checks cover the common wealth range, exact benchmark aliases, circular rankings,
+relative bars, negative chart observations/income, zero income, empty holdings,
+and extreme names/amounts. Both selected scopes in the existing report matrix
+also pass actual PDF text-margin bounds for complete portfolios, closed and open
+derivatives, missing stock prices and unsupported accounting actions.
+
+All **126 canonical V6.7.8 definitions** remain unchanged. Nine synthetic
+reference scenarios pass exact unrounded comparisons. The confidential captured
+real-export comparison passes all **33 shared output fields**, holdings, monthly
+income and diagnostics with identical prices, FX, dates and private event evidence;
+its raw financial outputs also match v1.0.4. No new provider requests are made
+for controlled comparison or export generation.
+
+Shared navy/cyan/blue/mint typography establishes four stronger monetary cards
+and a lighter performance/income row. Holdings have 01–05 circular badges, mint
+values, allocation percentages and clearly labelled relative-size bars. HTML
+retains full holdings details while consolidating the redundant holdings SVG.
+Its two inline charts and adjacent five-period TWR controls work offline;
+period changes do not alter wealth paths. Concise benchmark aliases preserve
+exact selected symbols and full identity details/PDF metadata.
+
+Rendered strip and split PDF alternatives were compared using the same private
+prepared model. The full-width holdings strip was retained for larger valuations
+and readable names. Ordinary-size pages and extreme-value pages pass text/vector
+bounds; explanatory body text remains at least 8 pt. Insight, health, method and
+non-affiliation disclosures retain missing valuations and historical estimates.
+HTML was checked at 1440 px, 1024 px and 390 px with networking disabled, including
+all five TWR controls, identical figures, escaping, CSP and no page overflow.
+Streamlit desktop/mobile checks preserve eight metrics, three charts, benchmark
+choices, both downloads and session clearing.
+
+The generic Windows archive passes CRC, its complete SHA-256 file manifest,
+private export/event-marker scanning and frozen worker/PDF/HTML tests with Python
+removed from PATH. Personal evidence remains encrypted outside the application
+package. The installed version is checked through the existing desktop shortcut,
+with loopback-only listening and automatic private event recognition. Public
+uploads remain disabled and no derivative scraper or financial methodology is
+changed. The Holy Grail reference source and repository remain read-only.

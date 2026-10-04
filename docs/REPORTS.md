@@ -47,3 +47,27 @@ Complete stock/ETF-only portfolios default to full-portfolio results when their
 own accounting and prices validate. Historical closed derivatives do not create
 a current quotation warning. Open unquoted derivatives retain incomplete full
 value and profit while independently valid stock/fund results remain available.
+
+
+## v1.0.5 visual identity
+
+Dashboard, PDF and HTML share role-based navy, cyan, blue, mint and amber tokens.
+Four primary monetary cards lead a lighter secondary performance/income row.
+Holdings use circular 01–05 rankings, prominent mint values and authoritative
+allocation percentages. Dashboard/HTML thin bars compare each holding with the
+largest displayed holding; they do not represent total-portfolio allocation.
+HTML consolidates holdings into those cards and keeps the full holdings table.
+
+All wealth charts use one padded-range rule: nonnegative observations do not
+receive negative padding; genuine negatives stay visible. A minimum five-percent
+span prevents exaggerating near-flat series, and nonzero origins are disclosed.
+The verified benchmark gets a concise chart alias, such as MSCI World ETF
+(IWDA.AS), while full identity remains in details and PDF metadata. Synthetic
+comparisons stay explicitly labelled. Five HTML TWR controls sit adjacent to
+wealth and change only cumulative TWR, never its full-history chart.
+
+The PDF retains the full-width five-card strip after comparing rendered split
+and strip arrangements. This preserves larger values and readable names rather
+than compressing holdings into a narrow sidebar. Footer labels distinguish
+insight, health, methodology and the independent-analysis disclaimer. Material
+missing valuations and historical price-estimate qualifications remain visible.

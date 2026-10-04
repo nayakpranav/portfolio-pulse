@@ -1,13 +1,16 @@
 """Display-only report content, shared by exports; never serialize worker state."""
 from html import escape
 from pulse.adapter import number
+from pulse.design import COLORS, CSS_TOKENS
 
-MINT = '#a8ebbc'
-HOLDING_CSS = '''.holding-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0 24px}
+MINT = COLORS['mint']
+HOLDING_CSS = CSS_TOKENS+'''.holding-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0 24px;align-items:stretch}
 .holding-card{background:#112238;border:1px solid #24415e;border-radius:12px;padding:18px;display:flex;flex-direction:column;min-width:0}
-.holding-rank{color:#91a7bc;font-size:.8rem}.holding-name{color:#f6f9fd;font-size:1.05rem;line-height:1.4;font-weight:650;overflow-wrap:anywhere;flex:1;margin:8px 0 18px}
+.holding-rank{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--fl-actual);color:var(--fl-background);font-size:.85rem;font-weight:750;font-variant-numeric:tabular-nums;flex-shrink:0}
+.holding-name{color:#f6f9fd;font-size:1.05rem;line-height:1.4;font-weight:650;overflow-wrap:anywhere;flex:1;margin:12px 0 20px}
 .holding-value{color:#a8ebbc;font-size:clamp(1.1rem,1.65vw,1.65rem);line-height:1.35;font-weight:750;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .holding-weight{color:#91a7bc;font-size:.85rem;margin-top:6px}
+.holding-track{height:4px;background:#24415e;border-radius:2px;margin-top:16px;overflow:hidden}.holding-fill{height:100%;background:#42cbea;border-radius:2px}
 @media(max-width:950px){.holding-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.holding-value{font-size:1.5rem}}
 @media(max-width:480px){.holding-grid{grid-template-columns:1fr}.holding-name{font-size:1.1rem}.holding-value{font-size:1.7rem}}'''
 
@@ -17,12 +20,15 @@ def money(value):
 
 def holding_cards(holdings):
     cards=[]
+    largest=max([number(r.get('value')) or 0 for r in holdings[:5]] or [0])
     for index,row in enumerate(holdings[:5],1):
         weight=number(row.get('weight_pct'))
-        cards.append('<article class="holding-card"><div class="holding-rank">'+str(index)+
+        value=number(row.get('value'));relative=max(0,min(100,value/largest*100)) if value is not None and largest>0 else None
+        bar='<div class="holding-track" aria-hidden="true"><div class="holding-fill" style="width:'+f'{relative:.3f}'+'%"></div></div>' if relative is not None else ''
+        cards.append('<article class="holding-card"><div class="holding-rank" aria-label="Rank '+str(index)+'">'+f'{index:02d}'+
             '</div><div class="holding-name">'+escape(str(row['name']))+
             '</div><div class="holding-value">'+money(row.get('value'))+
-            '</div><div class="holding-weight">'+(f'{weight:.1f}% of valued stocks/funds' if weight is not None else 'Weight unavailable')+'</div></article>')
+            '</div><div class="holding-weight">'+(f'{weight:.1f}% of valued stocks/funds' if weight is not None else 'Weight unavailable')+'</div>'+bar+'</article>')
     return '<div class="holding-grid">'+''.join(cards)+'</div>' if cards else '<p>No supported valued holding ranking available.</p>'
 
 def warning_summary(model):

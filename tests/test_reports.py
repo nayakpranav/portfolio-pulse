@@ -8,6 +8,7 @@ import hashlib
 import base64
 from pathlib import Path
 import pytest
+import pymupdf
 from pypdf import PdfReader
 from pulse.runner import run_analysis
 from pulse.synthetic import fixture, row
@@ -37,7 +38,10 @@ def test_two_reports_same_selected_model_and_figures(kind,report_results):
     raw=deepcopy(report_results[kind]);raw['synthetic']=False
     for scope in ('stocks_funds','full_portfolio'):
         model=prepare(raw,date(2026,10,4),scope);original=deepcopy(raw)
-        html=html_report(model).decode();pdf=PdfReader(BytesIO(summary_pdf(model)))
+        html=html_report(model).decode();pdf_bytes=summary_pdf(model);pdf=PdfReader(BytesIO(pdf_bytes))
+        page=pymupdf.open(stream=pdf_bytes,filetype='pdf')[0]
+        spans=[s for b in page.get_text('dict')['blocks'] for line in b.get('lines',[]) for s in line['spans']]
+        assert all(20<=s['bbox'][0] and s['bbox'][2]<=page.rect.width-20 and s['bbox'][1]>=10 and s['bbox'][3]<=page.rect.height-15 for s in spans)
         assert len(pdf.pages)==1
         parsed=Elements();parsed.feed(html)
         metrics={a['data-metric']:a for tag,a in parsed.elements if 'data-metric' in a}
@@ -74,7 +78,7 @@ def test_html_offline_allowlist_and_private_state_exclusion(report_results):
     assert 'PRIVATE_WORKER_STATE_NOT_FOR_EXPORT' not in html
     assert 'synthetic-demo-0' not in html and 'ZZ0000000001' not in html
     parsed=Elements();parsed.feed(html)
-    assert sum(tag=='svg' for tag,_ in parsed.elements)==3
+    assert sum(tag=='svg' for tag,_ in parsed.elements)==2
     assert len([a for tag,a in parsed.elements if 'data-period' in a])==5
     for tag,attrs in parsed.elements:
         assert tag not in {'iframe','object','embed','link','img','form','base'}

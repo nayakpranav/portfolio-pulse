@@ -59,7 +59,7 @@ def test_demo_numeric_mapping_and_pdf(results):
     pdf=PdfReader(BytesIO(summary_pdf(m)))
     assert float(pdf.pages[0].mediabox.width)==pytest.approx(841.8898,abs=.001)
     text=pdf.pages[0].extract_text()
-    for phrase in ('FOLIOLENS','6,114.80','221.80','1.95%','5.10%','3.27%','62.00','30 Sep 2026'):
+    for phrase in ('FolioLens','6,114.80','221.80','1.95%','5.10%','3.27%','62.00','30 Sep 2026'):
         assert phrase in text
 
 def test_reinvestment_income_once(results):
