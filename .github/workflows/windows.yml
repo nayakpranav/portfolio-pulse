@@ -1,0 +1,33 @@
+name: Windows portable application
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt pyinstaller==6.22.3
+      - run: python tools/build_windows.py
+      - name: Frozen worker and PDF smoke test
+        shell: pwsh
+        run: |
+          $exe=Resolve-Path 'output/windows/portable/Open FolioLens Personal/Open FolioLens Personal.exe'
+          $process=Start-Process -FilePath $exe -ArgumentList '--self-test','smoke.json' -PassThru -Wait
+          if($process.ExitCode -ne 0){throw 'Portable smoke failed'}
+          $result=Get-Content smoke.json | ConvertFrom-Json
+          if(-not $result.pdf -or $result.metrics -ne 8 -or -not $result.personal_mode){throw 'Portable result failed'}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FolioLens-Personal-Windows
+          path: |
+            output/windows/FolioLens-Personal-Windows.zip
+            output/windows/SHA256SUMS.txt
+            output/windows/package-manifest.json
+          retention-days: 30

@@ -114,7 +114,9 @@ def summary_pdf(model):
     observation = model['insights'][0]
     _label(c,_truncate(ascii_text(observation),w-58,7.2),29,87,7.2,CYAN)
     if model['issues']:
-        _label(c,_truncate('Data health: '+ascii_text('; '.join(model['issues'][:2])),w-58,6.5),29,73,6.5,AMBER)
+        derivative_gap=any(r.get('live_price_eur') is None for r in model['raw'].get('active_derivatives',[]))
+        detail='Missing derivative valuations: tracked value and lifetime profit unavailable.' if derivative_gap and model['by_key']['value'].value is None else '; '.join(model['issues'][:2])
+        _label(c,_truncate('Data health: '+ascii_text(detail),w-58,6.5),29,73,6.5,AMBER)
     _label(c,'Tracked value/profit may include derivatives; returns and holdings cover stocks/funds. Recovery is not withdrawable cash.',29,48,6.4,MUTED)
     _label(c,'Unofficial independent analysis. Not affiliated with Trade Republic. Not a tax certificate or investment recommendation.',29,35,6.4,MUTED)
     c.showPage();c.save()

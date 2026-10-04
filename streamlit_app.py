@@ -7,7 +7,7 @@ from pathlib import Path
 from pulse.benchmarks import PRESETS, validate_ticker
 from pulse.charts import wealth_range
 from pulse.mode import uploads_enabled, mode
-from pulse.private_config import event_candidates,export_digest,load_private_config
+from pulse.private_config import event_candidates,export_digest,load_private_config,personal_defaults
 from pulse.runner import validate_upload
 import json
 import altair as alt
@@ -63,7 +63,11 @@ with st.sidebar:
         st.caption('Exact identity, adjusted prices and EUR conversion must validate. Price-only indices cannot provide the dividend-inclusive comparison.')
     if not upload_enabled:
         st.caption('Fabricated benchmark illustrations · custom tickers are local-only.')
-    analyze = st.button('Analyze Portfolio',type='primary',use_container_width=True,disabled=uploaded is None or not custom_valid) if upload_enabled else False
+    analyze = st.button('Analyze Portfolio',type='primary',use_container_width=True,disabled=uploaded is None) if upload_enabled else False
+    if analyze and not custom_valid:
+        st.session_state.pop('model',None);st.session_state.pop('pdf',None)
+        st.error('Enter a valid Yahoo Finance ticker before analyzing.')
+        analyze=False
     demo = st.button('Try with Demo Portfolio',type='secondary' if upload_enabled else 'primary',use_container_width=True,disabled=selection=='Custom Yahoo Finance ticker')
     if st.button('Clear session results',use_container_width=True):
         for key in list(st.session_state):
@@ -85,7 +89,7 @@ with st.sidebar:
             st.session_state['input_digest']=digest
         try:
             validate_upload(content)
-            local_defaults=load_private_config(os.environ['FOLIOLENS_PRIVATE_CONFIG'],content) if os.environ.get('FOLIOLENS_PRIVATE_CONFIG') else {}
+            local_defaults=load_private_config(os.environ['FOLIOLENS_PRIVATE_CONFIG'],content) if os.environ.get('FOLIOLENS_PRIVATE_CONFIG') else personal_defaults(content)
             candidates=event_candidates(content)
             confirmations=[]
             prior=st.session_state.get('model',{}).get('raw',{})
@@ -94,6 +98,10 @@ with st.sidebar:
                 with st.expander('Private event / valuation review'):
                     for candidate in candidates:
                         st.text(f"Row {candidate['source_row']} · {candidate['date']}\n{candidate['name']} · {candidate['isin']}\nQuantity removed: {abs(candidate['quantity']):g}")
+                        established=any(item.get('isin')==candidate['isin'] and item.get('security_name')==candidate['name'] and float(item.get('quantity',0))==candidate['quantity'] for item in local_defaults.get('known_events',[]))
+                        if established:
+                            st.caption('Previously verified private event evidence is loaded automatically. Canonical identity, zero-consideration and full-position checks still apply.')
+                            continue
                         if st.checkbox('I confirm a full-position worthless write-off with no proceeds.',value=candidate['source_row'] in local_defaults.get('worthless_confirmations',[]),key=f"event_{digest}_{candidate['source_row']}"):
                             confirmations.append(candidate['source_row'])
                     st.caption('Confirmation does not waive canonical cash, full-position or prior-activity checks. Reanalyze after reviewing.')
@@ -103,7 +111,7 @@ with st.sidebar:
             else:raw_quotes=''
             if not raw_quotes and local_defaults.get('derivative_quotes'):raw_quotes=json.dumps(local_defaults['derivative_quotes'])
             if len(raw_quotes.encode('utf-8'))>65536:raise ValueError('Private valuation input exceeds limit')
-            session_config={'export_sha256':digest,'worthless_confirmations':confirmations,'derivative_quotes':json.loads(raw_quotes) if raw_quotes else {}}
+            session_config={'export_sha256':digest,'worthless_confirmations':confirmations,'known_events':local_defaults.get('known_events',[]),'derivative_quotes':json.loads(raw_quotes) if raw_quotes else {}}
         except (AnalysisError,ValueError,TypeError,OSError):
             st.error('Review the CSV or private valuation JSON before analyzing. No private input is logged.')
             analyze=False

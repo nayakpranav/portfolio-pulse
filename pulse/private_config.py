@@ -37,6 +37,13 @@ def validate_private_config(config, data):
         raise ValueError('Private confirmations must be bound to this exact export. Review them after changing the export.')
     if len(json.dumps(config).encode('utf-8'))>65536:
         raise ValueError('Private configuration exceeds the size limit.')
+    from security_events import KnownWorthlessDerecognition
+    known=config.get('known_events',[])
+    if not isinstance(known,list) or len(known)>100:raise ValueError('Invalid private registry')
+    for item in known:
+        spec=KnownWorthlessDerecognition(**item)
+        if len(spec.transaction_id_sha256)!=64 or any(c not in '0123456789abcdef' for c in spec.transaction_id_sha256) or not math.isfinite(float(spec.quantity)) or float(spec.quantity)>=0:
+            raise ValueError('Invalid exact event evidence')
     allowed = {c['source_row'] for c in event_candidates(data)}
     confirmations = config.get('worthless_confirmations', [])
     if not isinstance(confirmations,list) or len(confirmations)>100 or any(type(i) is not int or i not in allowed for i in confirmations):
@@ -66,14 +73,28 @@ def load_private_config(path, data):
         raise ValueError('Private configuration exceeds the size limit.')
     return validate_private_config(json.loads(path.read_text(encoding='utf-8')),data)
 
+def personal_defaults(data):
+    """Read generic runtime configuration from the user's private environment."""
+    import os
+    directory=os.environ.get('FOLIOLENS_CONFIG_DIRECTORY')
+    if not directory:return {}
+    root=Path(directory)
+    exact=root/'exports'/(export_digest(data)+'.json')
+    config=load_private_config(exact,data) if exact.is_file() else {'export_sha256':export_digest(data)}
+    registry=root/'verified-events.json'
+    if registry.is_file():
+        if registry.stat().st_size>65536:raise ValueError('Private registry exceeds limit')
+        config['known_events']=json.loads(registry.read_text(encoding='utf-8'))
+    return validate_private_config(config,data)
+
 def install_private_events(ns, config):
-    if not config.get('worthless_confirmations'):
+    if not config.get('worthless_confirmations') and not config.get('known_events'):
         return
     import security_events
     original=ns['match_known_worthless_derecognitions']
     def match(frame):
-        specs=[]
-        for index in config['worthless_confirmations']:
+        specs=[security_events.KnownWorthlessDerecognition(**item) for item in config.get('known_events',[])]
+        for index in config.get('worthless_confirmations',[]):
             # Canonical source_row is the input CSV line number (header is line 1).
             rows=frame[frame['source_row'].eq(index)]
             if len(rows)!=1:

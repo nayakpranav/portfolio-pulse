@@ -11,7 +11,7 @@ import tempfile
 import time
 from pulse.benchmarks import PRESETS, validate_ticker, benchmark_name
 from pulse.resources import execute_worker, WorkerLimitError
-from pulse.private_config import validate_private_config, load_private_config
+from pulse.private_config import validate_private_config, load_private_config, personal_defaults
 from pulse.mode import uploads_enabled
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +108,8 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=300, engine_
             replay=json.loads(profile.read_text(encoding='utf-8'))
         if private_config is None and prices is None and os.environ.get('FOLIOLENS_PRIVATE_CONFIG'):
             private_config=load_private_config(os.environ['FOLIOLENS_PRIVATE_CONFIG'],data)
+        if private_config is None and prices is None:
+            private_config=personal_defaults(data) or None
         private_config=validate_private_config(private_config,data)
     except (ValueError,TypeError,OSError):
         raise AnalysisError('Private event/valuation configuration is invalid or belongs to another export. Review its binding, dates and sources.') from None
@@ -135,7 +137,7 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=300, engine_
         if prices is not None:
             work.joinpath('prices.json').write_text(json.dumps(prices))
             env['PULSE_PRICE_INPUT'] = str(work/'prices.json')
-        command = [sys.executable,str(engine_path or ROOT/'vendor'/'v678'/'analysis_engine.py'),
+        command = [sys.executable,*(['--worker'] if getattr(sys,'frozen',False) else []),str(engine_path or ROOT/'vendor'/'v678'/'analysis_engine.py'),
                    '--input-csv',str(work/'input.csv'),'--output-root',str(work/'engine'),
                    '--manifest',str(work/'manifest.json'),'--no-enable-dividend-growth',
                    '--no-enable-derivative-quotes','--benchmark-ticker',benchmark or 'FOLIOLENS_DISABLED',

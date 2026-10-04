@@ -156,3 +156,23 @@ source and all reachable history were scanned for private record markers,
 credentials and artifacts. Original extracted source hashes remain unchanged;
 retained vendor files equal the previous committed core. The provenance manifest
 now also records Git's LF-normalized hashes alongside original export byte hashes.
+
+
+## Windows Personal continuation
+
+The generic portable application bundles its own runtime, uses a console-free Tk
+launcher, selects an available loopback port, opens the default browser and stops
+its backend/process tree on closing. Per-launch temporary storage is separate
+from persistent private event evidence in the local user profile. Private exports,
+registries, captures and reports are not build inputs or CI artifacts.
+
+The exact supplied transaction export was processed locally, without alteration,
+with live IWDA.AS and SPY benchmarks.
+The established private event matched V6.7.8 identity and canonical accounting
+safeguards. No manual derivative prices were used. Six metrics remained valid;
+tracked value and lifetime profit remained unavailable for missing valuations.
+The same captured-input comparison again passed all 27 shared fields exactly.
+
+The safe suite passed 81 tests, including automatic private-registry revalidation,
+changed-event blocking, export binding and launcher mode/loopback controls.
+Final graphical/package/release verification is recorded in the handoff.

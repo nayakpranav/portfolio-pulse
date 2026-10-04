@@ -21,7 +21,7 @@ def audit():
         path=ROOT/name
         if path.suffix.lower() in denied_extensions or any(part in {'.private','.venv','output','tmp'} for part in path.parts):
             findings.append({'file':name,'reason':'private/artifact file type or directory'})
-        if name=='assets/favicon.png':
+        if name in {'assets/favicon.png','assets/favicon.ico'}:
             continue  # Original generated branding asset, no user input.
         text=path.read_text(encoding='utf-8');scanned+=1
         for label,pattern in rules.items():
