@@ -106,6 +106,7 @@ def write_results(ns):
         'stockfund_realized_pl_eur': ns['lifetime_metrics']['lifetime_stock_realized_pl_eur'],
         'net_dividends_eur': ns['lifetime_metrics']['lifetime_net_dividend_recovery_eur'],
     })
+    result['trade_amount_audit'] = trade_amount_audit(ns)
     result['lifetime_cashflow_ledger'] = serialize(ns['lifetime_cashflow_ledger'])
     result['derivative_ledger'] = serialize(ns['derivative_ledger'])
     result['latest_transaction_date'] = serialize(ns['max_date'])
@@ -129,6 +130,23 @@ def write_results(ns):
     if os.environ.get('FOLIOLENS_CAPTURE')=='1':
         result['market_capture']={'calls':ns.get('_foliolens_capture',{}),'benchmark':ns.get('_foliolens_benchmark',{})}
     Path(os.environ['PULSE_RESULT_PATH']).write_text(json.dumps(result,allow_nan=False),encoding='utf-8')
+
+
+def trade_amount_audit(ns):
+    """Explain the original warning using completed canonical trades, counts only.
+
+    A missing raw amount remains a WARNING even when canonical IPO allocation
+    reconciles it. No transaction identity, quantity or private cash is exported.
+    """
+    frame=ns['df']
+    missing=frame[frame['asset_class_clean'].isin({'STOCK','FUND','DERIVATIVE'}) &
+                  frame['type_norm'].isin({'BUY','SELL'}) & frame['amount'].isna()]
+    trades=ns.get('trades',pd.DataFrame())
+    flags=trades[trades['source_row'].isin(missing['source_row'])]['trade_value_inference_flag'].fillna('') if not trades.empty else pd.Series(dtype=str)
+    ipo=int(flags.eq('IPO_SUBSCRIPTION_NET_CASH_AND_FEE_ALLOCATED').sum())
+    inferred=int(flags.isin({'BUY_AMOUNT_MISSING_USED_ABS_SHARES_X_PRICE','SELL_AMOUNT_MISSING_USED_ABS_SHARES_X_PRICE'}).sum())
+    return dict(missing_count=len(missing),ipo_cash_reconciled=ipo,quantity_price_inferred=inferred,
+                other_missing=len(missing)-ipo-inferred)
 
 
 def coverage_issue(frame, column, start_date, end_date):

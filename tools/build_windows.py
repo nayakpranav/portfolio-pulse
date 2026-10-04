@@ -24,7 +24,7 @@ def build():
         '--paths',str(ROOT),'--paths',str(ROOT/'vendor/v678')]
     for name in ('streamlit','yfinance','curl_cffi','altair'):
         command+=['--collect-all',name]
-    for name in ('pulse.runner','pulse.adapter','pulse.pdf','pulse.synthetic','pulse.profile','pulse.event_review','pulse.partial','worker_hooks','psutil','bs4','requests','reportlab','pyarrow','uvicorn','websockets'):
+    for name in ('pulse.runner','pulse.adapter','pulse.pdf','pulse.html_report','pulse.reporting','pulse.synthetic','pulse.profile','pulse.event_review','pulse.partial','worker_hooks','psutil','bs4','requests','reportlab','pyarrow','uvicorn','websockets'):
         command+=['--hidden-import',name]
     for name in ('pytest','playwright','pymupdf','pip_audit','IPython','matplotlib','scipy'):
         command+=['--exclude-module',name]

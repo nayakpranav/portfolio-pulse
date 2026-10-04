@@ -23,10 +23,18 @@ from pulse.runner import run_analysis,AnalysisError
 from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
-if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=2:importlib.reload(_adapter)
-if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=2:importlib.reload(_pdf)
+if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=3:importlib.reload(_adapter)
+if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=3:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
+from pulse.html_report import html_report, HTML_SCHEMA_VERSION
+from pulse.reporting import HOLDING_CSS, holding_cards
+
+def store_reports(model):
+    # Compute both first; a failure must not leave downloads from different runs.
+    pdf,html=summary_pdf(model),html_report(model)
+    st.session_state.update(model=model,pdf=pdf,html=html,
+                            export_schema=(_pdf.PDF_SCHEMA_VERSION,HTML_SCHEMA_VERSION))
 
 st.set_page_config(page_title='FolioLens',page_icon=str(Path(__file__).parent/'assets/favicon.png'),layout='wide')
 st.markdown('''<style>
@@ -38,6 +46,7 @@ h1{letter-spacing:-1.5px} [data-testid="stMetric"]{background:#112238;border:1px
 .period-performance strong{display:block;font-size:2rem;color:#42cbea;line-height:1.35}
 @media(max-width:600px){.block-container{padding:1rem}[data-testid="stMetricValue"]{font-size:1.4rem}}
 </style>''',unsafe_allow_html=True)
+st.markdown('<style>'+HOLDING_CSS+'</style>',unsafe_allow_html=True)
 
 upload_enabled = uploads_enabled()
 session_config=None
@@ -76,13 +85,13 @@ with st.sidebar:
         st.caption('Fabricated benchmark illustrations · custom tickers are local-only.')
     analyze = st.button('Analyze Portfolio',type='primary',use_container_width=True,disabled=uploaded is None) if upload_enabled else False
     if analyze and not custom_valid:
-        st.session_state.pop('model',None);st.session_state.pop('pdf',None)
+        for key in ('model','pdf','html','export_schema'):st.session_state.pop(key,None)
         st.error('Enter a valid Yahoo Finance ticker before analyzing.')
         analyze=False
     demo = st.button('Try with Demo Portfolio',type='secondary' if upload_enabled else 'primary',use_container_width=True,disabled=selection=='Custom Yahoo Finance ticker')
     if st.button('Clear session results',use_container_width=True):
         for key in list(st.session_state):
-            if key in {'model','pdf','input_digest','twr_period','start_demo','analysis_scope'} or key.startswith(('event_','manual_')):
+            if key in {'model','pdf','html','export_schema','input_digest','twr_period','start_demo','analysis_scope'} or key.startswith(('event_','manual_')):
                 st.session_state.pop(key,None)
         st.session_state.pop(f'upload_{upload_epoch}',None)
         st.session_state['upload_epoch'] = upload_epoch+1
@@ -90,12 +99,12 @@ with st.sidebar:
     if upload_enabled:
         with st.expander('Processing and privacy'):
             st.write('Your CSV is transmitted to this Streamlit backend to calculate results. Public security identifiers/names and tickers may be requested from Yahoo Finance and OpenFIGI, which can reveal your holdings to them. Reports contain private financial information.')
-            st.write('Worker files and caches are deleted after processing. Results and PDF downloads stay in this session until cleared or the session expires; no permanent portfolio storage or private shared cache is used. Clear removes the selected upload and analysis/download state. Use an authenticated backend for hosted personal analysis.')
+            st.write('Worker files and caches are deleted after processing. Results and PDF/HTML downloads stay in this session until cleared or the session expires; no permanent portfolio storage or private shared cache is used. Clear removes the upload and both downloads. Files you download remain on your device. Use an authenticated backend for hosted personal analysis.')
             if mode()=='personal':st.write('Confirmed exceptional-event evidence is encrypted in your local Windows profile and retained for future exports. Clear session results keeps this evidence; it does not retain your full export or report.')
     if uploaded is not None:
         content=uploaded.getvalue();digest=export_digest(content)
         if st.session_state.get('input_digest')!=digest:
-            st.session_state.pop('model',None);st.session_state.pop('pdf',None)
+            for key in ('model','pdf','html','export_schema'):st.session_state.pop(key,None)
             st.session_state.pop('analysis_scope',None)
             for key in list(st.session_state):
                 if key.startswith(('event_','manual_')):st.session_state.pop(key,None)
@@ -103,18 +112,12 @@ with st.sidebar:
         try:
             validate_upload(content)
             local_defaults=load_private_config(os.environ['FOLIOLENS_PRIVATE_CONFIG'],content) if os.environ.get('FOLIOLENS_PRIVATE_CONFIG') else personal_defaults(content)
-            candidates=event_review(content,local_defaults)
+            candidates=[c for c in event_review(content,local_defaults) if not c['verified']]
             confirmations=[]
-            prior=st.session_state.get('model',{}).get('raw',{})
-            derivatives=prior.get('active_derivatives',[]) if not prior.get('synthetic') else []
-            if candidates or derivatives:
-                with st.expander('Private event / valuation review'):
+            if candidates:
+                with st.expander('Action required: review transaction'):
                     for candidate in candidates:
                         st.text(f"Row {candidate['source_row']} · {candidate['date']}\n{candidate['name']} · {candidate['isin']}\nQuantity removed: {abs(candidate['quantity']):g}")
-                        established=candidate['verified']
-                        if established:
-                            st.caption('Previously verified private event evidence is loaded automatically. Canonical identity, zero-consideration and full-position checks still apply.')
-                            continue
                         st.caption('This delivery has no established economic classification. A transfer, exchange or custody removal is not automatically a worthless loss.')
                         if not candidate['eligible']:
                             st.warning('Worthless-loss confirmation is unavailable: '+candidate['reason'].replace('_',' ').lower()+'. Provide complete broker evidence for this event; it remains under review.')
@@ -122,10 +125,7 @@ with st.sidebar:
                         if st.checkbox('The broker evidence confirms a full-position worthless write-off with no proceeds. Remember this exact event privately.',value=candidate['source_row'] in local_defaults.get('worthless_confirmations',[]),key=f"event_{digest}_{candidate['source_row']}"):
                             confirmations.append(candidate['source_row'])
                     st.caption('Canonical identity, cash, full-position and prior-activity checks apply. Successful local confirmations are remembered for the same transaction and prior history in future exports; hosted confirmations stay in this session.')
-                    for derivative in derivatives:
-                        st.text(f"{derivative['security_name']} · {derivative['isin']} · quantity {derivative['current_quantity']:g}")
-                    raw_quotes=st.text_area('Dated manual derivative EUR prices (JSON)',value=json.dumps(local_defaults.get('derivative_quotes',{})) if local_defaults.get('derivative_quotes') else '',key='manual_quotes',placeholder='{"ISIN": {"price_eur": 1.25, "date": "YYYY-MM-DD", "source": "Broker bid"}}') if derivatives else ''
-            else:raw_quotes=''
+            raw_quotes=st.session_state.get('manual_quotes','')
             if not raw_quotes and local_defaults.get('derivative_quotes'):raw_quotes=json.dumps(local_defaults['derivative_quotes'])
             if len(raw_quotes.encode('utf-8'))>65536:raise ValueError('Private valuation input exceeds limit')
             session_config={'export_sha256':digest,'worthless_confirmations':confirmations,'known_events':local_defaults.get('known_events',[]),'derivative_quotes':json.loads(raw_quotes) if raw_quotes else {}}
@@ -139,7 +139,7 @@ st.markdown('Your investments, in focus.')
 start_demo = st.session_state.pop('start_demo',False)
 if demo or analyze or start_demo:
     # Remove stale results before a new run so a failed upload cannot show an old PDF.
-    st.session_state.pop('model',None);st.session_state.pop('pdf',None)
+    for key in ('model','pdf','html','export_schema'):st.session_state.pop(key,None)
     st.session_state.pop('analysis_scope',None)
     data,prices = fixture() if demo or start_demo else (uploaded.getvalue(),None)
     try:
@@ -150,8 +150,8 @@ if demo or analyze or start_demo:
                 except (OSError,ValueError,TypeError):
                     st.warning('The analysis finished, but verified evidence could not be saved privately. This event may need review after restarting; no private paths or data are logged.')
             model = prepare(result,report_date=datetime.now(ZoneInfo('Europe/Berlin')).date())
-            pdf = summary_pdf(model)
-            st.session_state['model'] = model;st.session_state['pdf'] = pdf
+            store_reports(model)
+            if analyze and session_config.get('worthless_confirmations'):st.rerun()
     except AnalysisError as exc:
         st.error(str(exc))
     except Exception:
@@ -171,15 +171,17 @@ if 'model' not in st.session_state:
 
 model = st.session_state['model']
 if model.get('model_schema_version')!=_adapter.MODEL_SCHEMA_VERSION:
-    model=prepare(model['raw'],report_date=model['snapshot']['report_date'])
-    st.session_state['model']=model;st.session_state['pdf']=summary_pdf(model)
+    model=prepare(model['raw'],report_date=model['snapshot']['report_date'],analysis_scope=model.get('analysis_scope'))
+    store_reports(model)
+if st.session_state.get('export_schema')!=(_pdf.PDF_SCHEMA_VERSION,HTML_SCHEMA_VERSION) or 'html' not in st.session_state:
+    store_reports(model)
 if upload_enabled:
     scope = st.radio('Analysis scope',['Stocks & funds','Full portfolio'],horizontal=True,
                      index=0 if model['analysis_scope']=='stocks_funds' else 1,key='analysis_scope')
     scope_key='stocks_funds' if scope=='Stocks & funds' else 'full_portfolio'
     if scope_key!=model['analysis_scope']:
         model=prepare(model['raw'],report_date=model['snapshot']['report_date'],analysis_scope=scope_key)
-        st.session_state['model']=model;st.session_state['pdf']=summary_pdf(model)
+        store_reports(model)
 st.caption(f"Analysis scope: {model['scope_label']}. Returns, benchmark and holdings always cover stocks/funds. Capital committed and recovery cover the full investment ecosystem.")
 if model.get('excluded_securities'):
     st.warning('Partial analysis: entire histories of securities requiring review are excluded from the displayed stock/fund metrics, chart and matched benchmark. Complete portfolio figures remain unavailable.')
@@ -193,13 +195,15 @@ if model['dependencies']['accounting_checks'] or model['dependencies']['unexplai
     from pulse.scopes import blocker_message
     for check in model['dependencies']['accounting_checks']:st.error(blocker_message(check))
 snap = model['snapshot']
-heading,download = st.columns([3,1])
+heading,download_pdf,download_html = st.columns([2,1,1])
 with heading:
     st.markdown(f'**Data health · {model["health"]}**')
     tx = snap['latest_transaction_date']
     st.caption(f"{'SYNTHETIC DEMO · fabricated transactions and market prices · ' if model['raw']['synthetic'] else ''}Transactions to {tx:%d %b %Y}" if tx else 'Transaction cutoff unavailable')
-with download:
-    st.download_button('Download Portfolio Summary (PDF)',st.session_state['pdf'],file_name='FolioLens_Summary.pdf',mime='application/pdf',use_container_width=True)
+with download_pdf:
+    st.download_button('Download PDF Report',st.session_state['pdf'],file_name='FolioLens_Summary.pdf',mime='application/pdf',use_container_width=True)
+with download_html:
+    st.download_button('Download HTML Report',st.session_state['html'],file_name='FolioLens_Report.html',mime='text/html',use_container_width=True)
 with st.expander('Data health and coverage'):
     if model['issues']:
         for issue in model['issues']:st.text('• '+issue)
@@ -209,8 +213,14 @@ with st.expander('Data health and coverage'):
     for action in model['raw'].get('corporate_action_audit',[]):
         if action.get('validation_status')!='PASS':
             st.text(f"Corporate-action review · {action.get('corporate_action_type','')} · {action.get('old_name','')}\n{action.get('warning_error','Incomplete action evidence; FIFO mutation was rejected.')}")
-    st.caption('Tracked lifetime results may include derivatives and income. Historical returns and benchmark comparison cover stocks/funds, excluding brokerage cash. Derivatives require a verified quote or explicit dated manual valuation; missing valuations block dependent totals.')
+    st.caption('Tracked lifetime results include the applicable investments and income. Historical returns and benchmark comparison cover stocks/funds, excluding brokerage cash. Missing inputs block only dependent totals.')
     if model['dependencies']['missing_stock']:st.warning('Holdings rankings cover only valued stocks/funds; unpriced stock/fund positions are omitted. See all current holdings below.')
+if upload_enabled and not model['raw']['synthetic'] and model['dependencies']['missing_derivative']:
+    with st.expander('Advanced: optional dated derivative valuations'):
+        st.caption('Optional only. Valid stock/fund results do not require these inputs. Reanalyze to apply a source-identified EUR valuation; no automatic derivative scraper is enabled.')
+        for derivative in model['raw'].get('active_derivatives',[]):
+            st.text(f"{derivative['security_name']} · {derivative['isin']}")
+        st.text_area('Dated manual derivative EUR prices (JSON)',key='manual_quotes',placeholder='{"ISIN": {"price_eur": 1.25, "date": "YYYY-MM-DD", "source": "Broker bid"}}')
 
 for offset in (0,4):
     columns = st.columns(4)
@@ -275,6 +285,9 @@ with holdings_col:
     with st.expander('All current stock/fund holdings'):
         st.dataframe(pd.DataFrame(model['holdings']).rename(columns={'name':'Holding','quantity':'Quantity','value':'Value EUR','quote_date':'Quote date','status':'Valuation'}),hide_index=True,use_container_width=True)
 
+st.markdown('### Your Five Largest Holdings')
+st.caption('Valued stocks/funds · cash and derivatives excluded · weights have no constituent look-through')
+st.markdown(holding_cards(snap['top_holdings']),unsafe_allow_html=True)
 st.markdown('### What Stands Out?')
 for insight in model['insights']:
     # Uploaded security names are data; prevent Markdown links/images from rendering.

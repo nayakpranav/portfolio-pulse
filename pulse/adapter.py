@@ -6,7 +6,7 @@ import pandas as pd
 from pulse.core import build_snapshot_data
 from pulse.scopes import availability, blocker_message
 
-MODEL_SCHEMA_VERSION = 2
+MODEL_SCHEMA_VERSION = 3
 
 @dataclass(frozen=True)
 class Metric:
@@ -132,7 +132,16 @@ def prepare(result, report_date=None, analysis_scope=None):
         if item.get('check','').startswith('sector_metadata'):
             continue  # Optional sector enrichment is not part of this product's scope.
         if item.get('severity') == 'WARNING':
-            issues.append(f"{item['check'].replace('_',' ')}: {item.get('value','review required')}")
+            audit=result.get('trade_amount_audit',{})
+            if item['check']=='missing_trade_amount_rows' and audit:
+                detail=[]
+                if audit['ipo_cash_reconciled']:detail.append(f"{audit['ipo_cash_reconciled']} reconciled to IPO subscription cash and fees")
+                if audit['quantity_price_inferred']:detail.append(f"{audit['quantity_price_inferred']} inferred from quantity × price under V6.7.8; verify broker cash")
+                if audit['other_missing']:detail.append(f"{audit['other_missing']} without a supported stock/fund inference; inspect source evidence")
+                issues.append(f"Missing trade amount rows: {audit['missing_count']} — "+'; '.join(detail)+'. Original canonical warning retained; this is not a worthless-removal event.')
+            elif item['check']=='zero_or_missing_cost_buy_rows' and item.get('value')==audit.get('missing_count')==audit.get('ipo_cash_reconciled') and audit.get('ipo_cash_reconciled'):
+                issues.append('Raw buy amount absent: canonical IPO cash/fee allocation supplies the acquisition basis. Source warning retained.')
+            else:issues.append(f"{item['check'].replace('_',' ')}: {item.get('value','review required')}")
     missing = sum(r.get('valuation_status') == 'BLOCKING' for r in result['valuation_diagnostics'])
     if missing:
         issues.append(f'{missing} open position(s) lack a required reliable valuation.')

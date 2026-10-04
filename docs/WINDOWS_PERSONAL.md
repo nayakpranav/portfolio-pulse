@@ -5,7 +5,10 @@ Extract the entire **FolioLens-Personal-Windows.zip** package. Double-click
 package setup are required. Your default browser opens automatically.
 
 Select the Trade Republic CSV, choose a benchmark and click **Analyze Portfolio**.
-Download your private report and use **Clear session results** between exports.
+Use **Download PDF Report** or **Download HTML Report** and **Clear session results**
+between exports. Both files contain the selected validated analysis. HTML opens
+offline without the running application; the PDF remains one A4 landscape page.
+Treat both as private. Clearing the session does not delete downloaded files.
 The small launcher window provides **Open in browser** and **Close FolioLens**.
 Closing that window stops the backend and removes its temporary workspace.
 Keep the extracted folder and its `_internal` resources together.
@@ -23,7 +26,7 @@ copy. Application updates do not replace these records. The launcher and sidebar
 show the release version. No private event evidence is shipped in the ZIP.
 
 Ordinary supported transactions need no confirmation. A genuinely ambiguous
-delivery appears in **Private event / valuation review**, with its instrument,
+delivery appears in **Action required: review transaction**, with its instrument,
 date and quantity. Confirm a worthless write-off only with broker evidence;
 transfers and exchanges are different events. Successful local confirmation is
 remembered automatically for the exact transaction and complete prior security
@@ -36,7 +39,9 @@ confirmations remain session-only; no shared hosted event registry is created.
 Missing current derivative quotes do not block independently valid stock/fund
 returns, capital/recovery and recognized income. Tracked value and lifetime
 profit remain unavailable when required valuations are missing. Dated manual
-inputs remain optional inside the advanced private-review expander.
+inputs remain optional under **Advanced: optional dated derivative valuations**
+in the results area. Verified events are handled silently in the backend and
+do not create a sidebar review panel or require repeated approval.
 
 When derivative quotes are missing, **Stocks & funds** becomes the default scope.
 Its value and reconciled lifetime profit exclude derivatives and cash interest.

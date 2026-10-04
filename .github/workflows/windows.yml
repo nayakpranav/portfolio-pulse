@@ -15,7 +15,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt pyinstaller==6.22.3
       - run: python tools/build_windows.py
-      - name: Frozen worker and PDF smoke test
+      - name: Frozen worker and PDF/HTML smoke test
         shell: pwsh
         run: |
           $exe=Resolve-Path 'output/windows/portable/Open FolioLens Personal/Open FolioLens Personal.exe'
@@ -23,6 +23,7 @@ jobs:
           if($process.ExitCode -ne 0){throw 'Portable smoke failed'}
           $result=Get-Content smoke.json | ConvertFrom-Json
           if(-not $result.pdf -or $result.metrics -ne 8 -or -not $result.personal_mode){throw 'Portable result failed'}
+          if(-not $result.html -or -not $result.scoped_html){throw 'Portable HTML exports failed'}
           if($result.stock_fund_scope_metrics -ne 8 -or $result.unpriced_derivatives -ne 7 -or -not $result.full_portfolio_partial -or -not $result.scoped_pdf){throw 'Portable partial-scope result failed'}
           if(-not $result.exact_event_persistence -or -not $result.changed_export_recognition){throw 'Portable private evidence persistence failed'}
       - uses: actions/upload-artifact@v4

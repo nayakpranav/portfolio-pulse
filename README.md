@@ -5,7 +5,7 @@ Your investments, in focus.
 An independent, unofficial Streamlit application for Trade Republic transaction
 exports. A pinned V6.7.8 analytical core powers eight essential metrics, three
 charts, deterministic observations, contextual explanations and a private,
-one-page A4 landscape PDF.
+one-page A4 landscape PDF and a self-contained offline HTML report.
 
 **Release status:** real-data personal analysis implemented; public synthetic demo. The public release defaults
 to a synthetic demo. Public CSV uploads remain disabled pending an approved
@@ -42,7 +42,10 @@ Activate the virtual environment before installing or running. On Windows use
 `.venv\Scripts\Activate.ps1`; on macOS/Linux use `source .venv/bin/activate`.
 
 Choose **Try with Demo Portfolio**, optionally change the benchmark, inspect the
-summary and download **Portfolio Summary (PDF)**. **Clear session results**
+summary and choose **Download PDF Report** or **Download HTML Report**.
+Both exports use the same validated selected scope and financial model. The HTML
+opens offline, with charts and five TWR periods; it makes no market-data requests.
+See [report contents and privacy](docs/REPORTS.md). **Clear session results**
 clears both analysis/download state and the selected upload.
 
 For the full local personal-use workflow, use the loopback launcher:
@@ -64,6 +67,7 @@ Live market-data calls require network access and can fail or reach a timeout.
 - `pulse/adapter.py`: metric/source mapping, scope guards, chart and narrative inputs.
 - `streamlit_app.py`: a single responsive dashboard; no private shared caches.
 - `pulse/pdf.py`: composition using V6.7.8's ReportLab vector components.
+- `pulse/html_report.py`: escaped, offline HTML with inline SVG charts and no external resources.
 - `pulse/synthetic.py`: fabricated fixtures and prices, without personal data.
 - `tests/`: scenario, numeric, PDF, input-safety and session-isolation checks.
 

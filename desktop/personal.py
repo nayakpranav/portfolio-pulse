@@ -11,7 +11,7 @@ import urllib.request
 import webbrowser
 
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parents[1]))
-VERSION='1.0.3'
+VERSION='1.0.4'
 
 def free_port():
     with socket.socket() as sock:
@@ -118,14 +118,17 @@ def main():
         from pulse.synthetic import fixture
         from pulse.adapter import prepare
         from pulse.pdf import summary_pdf
+        from pulse.html_report import html_report
         data,prices=fixture();model=prepare(run_analysis(data,prices=prices))
-        report={'synthetic_worker':True,'metrics':len(model['metrics']),'pdf':summary_pdf(model).startswith(b'%PDF'),'personal_mode':personal_environment()['FOLIOLENS_MODE']=='personal'}
+        report={'synthetic_worker':True,'metrics':len(model['metrics']),'pdf':summary_pdf(model).startswith(b'%PDF'),'html':html_report(model).startswith(b'<!doctype html>'),'personal_mode':personal_environment()['FOLIOLENS_MODE']=='personal'}
         data,prices=fixture('open_derivatives')
         scoped=prepare(run_analysis(data,prices=prices),analysis_scope='stocks_funds')
         report.update(stock_fund_scope_metrics=sum(m.value is not None for m in scoped['metrics']),
                       unpriced_derivatives=scoped['dependencies']['missing_derivative'],
                       full_portfolio_partial=all(v is None for v in scoped['full_totals'].values()),
                       scoped_pdf=summary_pdf(scoped).startswith(b'%PDF'))
+        report['scoped_html']=html_report(scoped).startswith(b'<!doctype html>')
+        assert report['html'] and report['scoped_html']
         assert report['stock_fund_scope_metrics']==8 and report['unpriced_derivatives']==7 and report['full_portfolio_partial'] and report['scoped_pdf']
         from pulse.event_review import review,remember
         from pulse.private_config import export_digest,personal_defaults

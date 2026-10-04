@@ -250,3 +250,52 @@ live preset/custom browser tests produced eight valid stock/fund cards, three
 charts, five TWR periods, private PDF downloads and cleared sessions. Full value
 and lifetime profit remain unavailable for seven unquoted derivatives. Final
 restart, package, safe-suite and CI results are recorded in the release handoff.
+
+## FolioLens Personal v1.0.4
+
+The repository-safe suite passes **150 tests**, including 24 new display/report
+checks. All nine retained synthetic reference scenarios match V6.7.8 exactly.
+Controlled local real-export comparison matches all **33** serialized result
+fields with identical captured prices, FX, dates and private event classifications.
+The preceding release's financial fields are unchanged; the extra field contains
+only diagnostic counts from the already-completed canonical trade ledger. All
+126 protected canonical function/class definitions and reference hashes remain
+unchanged. No private rows, identifiers, amounts or screenshots are published.
+
+Complete stock/ETF-only and historical closed-derivative portfolios default to
+full-portfolio results. Missing stocks, open unquoted derivatives and unresolved
+actions retain their dependency guards. Verified exceptional events no longer
+render a sidebar review panel; unresolved actions still require exact evidence.
+IPO cash reconciliation is explained using canonical inference flags, while the
+original raw-amount warning remains. A separate zero-cost buy cannot be hidden by
+another trade's successful IPO reconciliation.
+
+PDF and HTML share the prepared model and preserve every selected headline
+figure. Tests cover both scopes, disabled/incomplete comparisons, large values,
+long names, no holdings, independent sessions, clearing, scope regeneration and
+legacy display migration. PDFs render as one landscape A4 page; actual private
+and stress reports pass text-margin bounds and lower-text checks at 8 pt. The
+holdings strip uses prominent mint values and larger white names.
+
+Standalone HTML was opened with browser networking disabled at desktop and
+390px mobile widths. Its three inline SVG charts and five TWR controls work,
+with no external requests, overflow or browser errors. Hostile names, script
+closures, event handlers and unsafe URLs remain escaped text. Only the exact
+fixed script is permitted by CSP; raw ledgers, event evidence, credentials and
+provider captures are absent. Clearing one session preserves another session's
+separate PDF/HTML bytes.
+
+The generic Windows executable passes worker, both-report and exact-event
+persistence tests with Python removed from PATH. The actual installed application
+was opened via the existing desktop shortcut, checked for loopback-only binding,
+and tested privately with the exact export and preset/custom benchmarks. Eight
+valid stock/fund metrics, three charts, all five periods, responsive holdings,
+both matching downloads and clearing passed without repeated event confirmation.
+Seven unquoted derivatives still prevent complete-portfolio value and profit.
+Local profile evidence is retained separately from the generic package.
+
+The ZIP's file manifest, archive CRC and SHA-256 pass; actual private export/event
+markers are absent. Public-source and reachable-history audits find no private
+records. Linux regressions and Windows packaging/report smoke tests run in CI
+using synthetic data only. The public application remains a synthetic demo;
+unrestricted real uploads and unapproved derivative scrapers remain disabled.

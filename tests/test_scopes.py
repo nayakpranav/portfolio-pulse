@@ -177,5 +177,5 @@ def test_hot_release_refreshes_legacy_session_without_reprocessing(monkeypatch):
     monkeypatch.setattr('pulse.runner.run_analysis',no_worker)
     app.run()
     assert not app.exception and len(app.metric)==8
-    assert app.session_state['model']['model_schema_version']==2
+    assert app.session_state['model']['model_schema_version']==adapter.MODEL_SCHEMA_VERSION
     assert 'dependencies' in app.session_state['model']

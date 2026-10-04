@@ -1,6 +1,7 @@
 # Real portfolio analysis
 
-Use Python 3.12, activate the project virtual environment and install
+For Windows, use the [one-click portable application](WINDOWS_PERSONAL.md).
+The following source workflow is for developers: use Python 3.12, activate the project virtual environment and install
 `requirements.txt`. Launch the full workflow on loopback:
 
 ```sh
@@ -9,8 +10,8 @@ python tools/run_personal.py
 
 Open the displayed local URL. Upload the complete UTF-8 Trade Republic export,
 select a preset or **Custom Yahoo Finance ticker**, and click **Analyze Portfolio**.
-Download the private one-page report. **Clear session results** resets the upload,
-model, PDF and private review controls. Selecting a different file also removes
+Download the private one-page PDF or offline HTML report. **Clear session results** resets the upload,
+model, PDF, HTML and private review controls. Selecting a different file also removes
 previous analysis/download state. There are eight headline metrics and three charts;
 the prominent cumulative period TWR is a separate performance component.
 
@@ -22,10 +23,16 @@ There is no permanent portfolio storage in the application workflow.
 
 ## Private event review
 
-Negative security `FREE_RECEIPT` rows appear in **Private event / valuation review**.
+Only unresolved negative security `FREE_RECEIPT` rows appear in
+**Action required: review transaction**. Previously verified exact events are
+recognized automatically, without displaying private evidence in the sidebar.
 Review the displayed instrument, CSV line, date and quantity. Confirm only an
 actually known full-position worthless write-off with no proceeds. Confirmation
-is bound to the exact CSV digest and line; changing the export invalidates it.
+is initially bound to the uploaded CSV and line. A successfully validated local
+event is then remembered in the encrypted Windows profile using its exact
+transaction identity and complete prior activity. Adding later transactions
+does not invalidate the historical evidence; changing identity, consideration,
+quantity or relevant prior history does.
 The canonical matcher still requires the exact transaction, full prior position,
 zero cash/fee/tax/price and supported prior activity. Partial, ambiguous or
 unconfirmed removals remain blocking. This never modifies the public event registry.
@@ -50,7 +57,9 @@ generic, not personal records):
 
 The example's placeholders must be replaced locally with reviewed evidence.
 Obtain the digest with `hashlib.sha256(csv_bytes).hexdigest()`. Do not commit this
-file. CSV line numbers start at 2. Review configuration after every export change.
+file. CSV line numbers start at 2. This optional export-specific advanced file
+requires an updated digest after a change; the ordinary graphical workflow uses
+persistent exact-event evidence and requires no manual JSON or hash calculation.
 
 ## Derivatives
 
@@ -58,7 +67,7 @@ Canonical derivative FIFO, settlements and valuation arithmetic are retained.
 Yahoo's generic ISIN probe cannot establish a sufficiently reliable derivative
 identity, so a low-confidence result is diagnostic, not an accepted valuation.
 Unapproved non-Yahoo scrapers are disabled. After analysis, active positions appear
-in the private review expander. Enter dated **EUR per-unit** valuations as JSON,
+under **Advanced: optional dated derivative valuations**. Optional dated **EUR per-unit** valuations can be entered as JSON,
 then reanalyze. Positive finite prices, actual derivative ISINs, a nonfuture date,
 source and the exact export binding are required. A captured observation date
 must not be represented as a verified exchange quote timestamp. Manual valuations
