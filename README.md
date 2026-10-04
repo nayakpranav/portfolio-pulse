@@ -143,3 +143,13 @@ is explicit: unpriced positions count as active but contribute no invented value
 The existing five holdings cards lead directly into Top 10 and All Holdings.
 Offline HTML shares the prepared composition; the PDF retains its compact layout
 and adds exact monthly income values. See [report definitions](docs/REPORTS.md).
+
+
+### Individual holding performance — v1.0.8
+
+The five largest holding cards show signed unrealized returns on their currently
+open shares. Top 10 and All Holdings show current value, remaining acquisition
+basis, weight, open P/L and simple return, with operational details retained in
+All Holdings. These fields come from the validated canonical accounting output;
+they are not annualized or lifetime total returns. Missing or unreconciled inputs
+remain explicitly unavailable. PDF and offline HTML use the same prepared model.

@@ -105,3 +105,38 @@ zero amounts remain exact. Partial months retain outlines and an asterisk;
 uncovered/unavailable months show a dash, never an invented zero. HTML adds a
 visible exact monthly key while preserving hover values; Streamlit retains its
 exact tooltips to avoid overcrowding its compact responsive chart.
+
+
+## v1.0.8 individual holding performance
+
+Cards and both detailed tables expose the canonical remaining acquisition basis,
+open-position unrealized P/L and simple unrealized return. The worker already
+provides these EUR fields: `remaining_acquisition_cost_basis_eur`,
+`live_unrealized_pl_acquisition_basis_eur`, and
+`live_simple_return_acquisition_basis_pct`. No FIFO, prices or FX are reconstructed
+in a report. Open P/L reconciles to current value minus remaining acquisition
+basis; return reconciles to that P/L divided by positive usable basis, times 100.
+Dividends, interest and realized sales are not added again. These returns are
+neither lifetime returns nor annualized MWR or cumulative TWR.
+
+Canonical identity, source presence, valuation diagnostics, existing quote
+freshness and EUR-conversion evidence are checked before displaying performance.
+Missing/unusable basis or prices, ambiguous identity and source discrepancies
+produce an explicit unavailable state; material reconciliation issues remain
+visible in data health and Performance coverage. A zero basis can retain valid
+canonical open P/L, but has no percentage return. Existing market values,
+allocation denominators, ranking and headline financial calculations are unchanged.
+
+The five cards retain mint valuations with compact upper-right signed return
+badges: green positive, red negative, neutral exact zero and muted unavailable.
+Top 10 uses Holding, Value, Basis, Weight, Open P/L and Return; public security
+identifiers remain internal to ranking. All Holdings adds quantity, quote date,
+valuation, ISIN and performance coverage. Its intended security identifiers are
+not private broker transaction identifiers. Shared formatting ensures the same
+two-decimal signed figures in the app and offline HTML. Wide tables scroll inside
+their container on mobile.
+
+The one-page PDF retains its executive layout and monthly keys, with small Open
+return indicators above holding names where they fit. Extreme indicators that
+cannot fit are omitted rather than clipped; complete performance and operational
+details remain in HTML and the application. No detailed PDF table is added.

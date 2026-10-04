@@ -76,7 +76,9 @@ def test_html_offline_allowlist_and_private_state_exclusion(report_results):
         raw[key]={'secret':'PRIVATE_WORKER_STATE_NOT_FOR_EXPORT'}
     m=prepare(raw,date(2026,10,4));html=html_report(m).decode()
     assert 'PRIVATE_WORKER_STATE_NOT_FOR_EXPORT' not in html
-    assert 'synthetic-demo-0' not in html and 'ZZ0000000001' not in html
+    assert 'synthetic-demo-0' not in html
+    # Public security ISINs are intended operational details in All Holdings only.
+    assert '<th>ISIN</th>' in html
     parsed=Elements();parsed.feed(html)
     assert sum(tag=='svg' for tag,_ in parsed.elements)==2
     assert len([a for tag,a in parsed.elements if 'data-period' in a])==5
@@ -234,7 +236,7 @@ def test_hot_deployment_refreshes_presentation_helpers_and_paired_reports(report
     assert charts.benchmark_alias(model).startswith('Synthetic MSCI World ETF')
     assert 'stale holding presentation' not in app.session_state['html'].decode()
     assert 'width:32px' in app.session_state['html'].decode()
-    assert app.session_state['export_schema']==(6,4)
+    assert app.session_state['export_schema']==(7,5)
     assert len(app.metric)==8 and app.session_state['pdf'].startswith(b'%PDF')
 
 

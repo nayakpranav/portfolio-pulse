@@ -20,7 +20,7 @@ def panel(c,x,y,width,height):
     c.setFillColor(HexColor(COLORS['surface']));c.setStrokeColor(GRID)
     c.setLineWidth(.4);c.roundRect(x,y,width,height,7,fill=1,stroke=1)
 
-PDF_SCHEMA_VERSION = 6
+PDF_SCHEMA_VERSION = 7
 
 def ascii_text(value):
     return str(value).replace('€','EUR ').replace('—','-').replace('–','-').encode('latin-1','replace').decode('latin-1')
@@ -162,14 +162,19 @@ def summary_pdf(model):
     _label(c,'EUR | * partial / outline | - uncovered, not zero',ix+14,iy+3,6.5,MUTED)
     # Compact holdings strip with the canonical valued-stock/fund denominator.
     _label(c,'LARGEST VALUED STOCK/FUND HOLDINGS',28,204,9,WHITE,'Helvetica-Bold')
-    _label(c,'Weights use valued stock/fund assets; no constituent look-through.',28,191,8,MUTED)
+    _label(c,'Weights use valued stock/fund assets; Open = unrealized return on remaining acquisition basis.',28,191,8,MUTED)
     for i,r in enumerate(data['top_holdings'][:5]):
         x=28+i*(w-56)/5;tile_w=(w-56)/5-6
         panel(c,x,106,tile_w,77)
         c.setFillColor(CYAN);c.circle(x+18,163,9,fill=1,stroke=0)
         _label(c,f'{i+1:02d}',x+18,160,8.5,BG,'Helvetica-Bold',align='center')
         for j,line in enumerate(_holding_name_lines(ascii_text(r['name']),tile_w-43,8.8)):
-            _label(c,line,x+36,167-j*11,8.8,WHITE)
+            _label(c,line,x+36,165-j*11,8.8,WHITE)
+        from pulse.adapter import number
+        ret=number(r.get('return_pct'))
+        badge='Open N/A' if ret is None else 'Open '+('0.00%' if ret==0 else f'{ret:+,.2f}%')
+        if stringWidth(badge,'Helvetica-Bold',7)<=tile_w-43:
+            _label(c,badge,x+tile_w-8,177,7,HexColor(MINT) if ret is not None and ret>0 else HexColor('#fca5a5') if ret is not None and ret<0 else MUTED,'Helvetica-Bold',align='right')
         value=f"EUR {r['value']:,.2f}"
         _label(c,value,x+10,134,fit_size(value,tile_w-20),HexColor(MINT),'Helvetica-Bold')
         _label(c,f"{r['weight_pct']:.1f}% of valued stocks/funds",x+10,118,8,MUTED)

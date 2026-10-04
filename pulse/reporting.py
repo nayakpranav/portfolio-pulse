@@ -3,11 +3,12 @@ from html import escape
 from pulse.adapter import number
 from pulse.design import COLORS, CSS_TOKENS
 
-PRESENTATION_SCHEMA_VERSION = 2
+PRESENTATION_SCHEMA_VERSION = 3
 MINT = COLORS['mint']
 HOLDING_CSS = CSS_TOKENS+'''.holding-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0 24px;align-items:stretch}
 .holding-card{background:#112238;border:1px solid #24415e;border-radius:12px;padding:18px;display:flex;flex-direction:column;min-width:0}
 .holding-rank{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--fl-actual);color:var(--fl-background);font-size:.85rem;font-weight:750;font-variant-numeric:tabular-nums;flex-shrink:0}
+.holding-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:32px}.holding-return{max-width:calc(100% - 40px);font-size:.75rem;font-weight:650;line-height:1.3;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.return-positive{color:#a8ebbc}.return-negative{color:#fca5a5}.return-neutral,.return-unavailable{color:#91a7bc}
 .holding-name{color:#f6f9fd;font-size:1.05rem;line-height:1.4;font-weight:650;overflow-wrap:anywhere;flex:1;margin:12px 0 20px}
 .holding-value{color:#a8ebbc;font-size:clamp(1.1rem,1.65vw,1.65rem);line-height:1.35;font-weight:750;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .holding-weight{color:#91a7bc;font-size:.85rem;margin-top:6px}
@@ -19,6 +20,70 @@ def money(value):
     value = number(value)
     return f'€{value:,.2f}' if value is not None else 'Unavailable'
 
+FINANCIAL_COLUMNS=['Holding','Value','Basis','Weight','Open P/L','Return']
+OPERATIONAL_COLUMNS=['Quantity','Quote date','Valuation','ISIN','Performance coverage']
+HOLDING_EXPLANATION='Badges and Return show unrealized return on currently held shares versus remaining acquisition basis, not lifetime, annualized, MWR or TWR performance. Open P/L excludes realized gains, separately recognized dividends and interest. Weight retains the valued stock/fund denominator.'
+
+
+def return_state(value):
+    value=number(value)
+    return 'unavailable' if value is None else 'positive' if value>0 else 'negative' if value<0 else 'neutral'
+
+
+def signed_percent(value):
+    value=number(value)
+    return 'Unavailable' if value is None else '0.00%' if value==0 else f'{value:+,.2f}%'
+
+
+def signed_money(value):
+    value=number(value)
+    return 'Unavailable' if value is None else ('+' if value>0 else '-' if value<0 else '')+f'€{abs(value):,.2f}'
+
+
+def return_badge(row):
+    value=number(row.get('return_pct'));state=return_state(value)
+    arrow='↑ ' if state=='positive' else '↓ ' if state=='negative' else ''
+    label=arrow+signed_percent(value)
+    explanation='Unrealized return on current shares versus remaining acquisition basis. '+str(row.get('performance_status','Source unavailable'))+'. Not annualized or lifetime total return.'
+    return '<span class="holding-return return-'+state+'" title="'+escape(explanation,quote=True)+'" aria-label="'+escape('Unrealized return: '+label+'. '+explanation,quote=True)+'">'+escape(label)+'</span>'
+
+
+def table_rows(holdings,operational=False):
+    import pandas as pd
+    output=[]
+    for row in holdings:
+        weight=number(row.get('weight_pct'))
+        values=dict(zip(FINANCIAL_COLUMNS,[str(row['name']),money(row.get('value')),money(row.get('basis')),f'{weight:.1f}%' if weight is not None else 'Unavailable',signed_money(row.get('open_pl')),signed_percent(row.get('return_pct'))]))
+        if operational:
+            qty=number(row.get('quantity'));quote=pd.to_datetime(row.get('quote_date'),errors='coerce')
+            values.update(zip(OPERATIONAL_COLUMNS,[f'{qty:g}' if qty is not None else 'Unavailable',quote.strftime('%d %b %Y') if pd.notna(quote) else 'Unavailable',str(row.get('status','Unavailable')),str(row.get('isin','')),str(row.get('performance_status','Source unavailable'))]))
+        output.append(values)
+    return output
+
+
+def table_frame(holdings,operational=False):
+    import pandas as pd
+    frame=pd.DataFrame(table_rows(holdings,operational),columns=FINANCIAL_COLUMNS+(OPERATIONAL_COLUMNS if operational else []))
+    def colors(row):
+        source=holdings[row.name]
+        shades={'positive':'#a8ebbc','negative':'#fca5a5','neutral':'#91a7bc','unavailable':'#91a7bc'}
+        return ['color: '+shades[return_state(source.get('open_pl' if c=='Open P/L' else 'return_pct'))] if c in {'Open P/L','Return'} else '' for c in frame.columns]
+    return frame.style.apply(colors,axis=1)
+
+
+def table_html(holdings,operational=False):
+    columns=FINANCIAL_COLUMNS+(OPERATIONAL_COLUMNS if operational else [])
+    parts=['<div class="table-scroll"><table><thead><tr>'+''.join('<th'+(' class="number"' if c in FINANCIAL_COLUMNS[1:] or c=='Quantity' else '')+'>'+escape(c)+'</th>' for c in columns)+'</tr></thead><tbody>']
+    for source,row in zip(holdings,table_rows(holdings,operational)):
+        parts.append('<tr>')
+        for column in columns:
+            cls='number' if column in FINANCIAL_COLUMNS[1:] or column=='Quantity' else ''
+            if column in {'Open P/L','Return'}:cls+=' return-'+return_state(source.get('open_pl' if column=='Open P/L' else 'return_pct'))
+            parts.append('<td class="'+cls+'">'+escape(row[column])+'</td>')
+        parts.append('</tr>')
+    return ''.join(parts)+'</tbody></table></div>'
+
+
 def holding_cards(holdings):
     cards=[]
     largest=max([number(r.get('value')) or 0 for r in holdings[:5]] or [0])
@@ -26,8 +91,8 @@ def holding_cards(holdings):
         weight=number(row.get('weight_pct'))
         value=number(row.get('value'));relative=max(0,min(100,value/largest*100)) if value is not None and largest>0 else None
         bar='<div class="holding-track" aria-hidden="true"><div class="holding-fill" style="width:'+f'{relative:.3f}'+'%"></div></div>' if relative is not None else ''
-        cards.append('<article class="holding-card"><div class="holding-rank" aria-label="Rank '+str(index)+'">'+f'{index:02d}'+
-            '</div><div class="holding-name">'+escape(str(row['name']))+
+        cards.append('<article class="holding-card"><div class="holding-top"><div class="holding-rank" aria-label="Rank '+str(index)+'">'+f'{index:02d}'+
+            '</div>'+return_badge(row)+'</div><div class="holding-name">'+escape(str(row['name']))+
             '</div><div class="holding-value">'+money(row.get('value'))+
             '</div><div class="holding-weight">'+(f'{weight:.1f}% of valued stocks/funds' if weight is not None else 'Weight unavailable')+'</div>'+bar+'</article>')
     return '<div class="holding-grid">'+''.join(cards)+'</div>' if cards else '<p>No supported valued holding ranking available.</p>'

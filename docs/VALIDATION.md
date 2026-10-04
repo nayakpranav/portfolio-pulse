@@ -385,3 +385,49 @@ CRC and SHA-256 checks, Python-independent startup, and private-marker scans.
 The installed shortcut workflow is validated locally with private evidence
 outside the generic package. Public uploads and derivative scrapers stay disabled;
 the original Holy Grail remains read-only. No financial calculations change.
+
+
+## FolioLens Personal v1.0.8
+
+The full repository-safe suite passes **232 tests**, with no failed or skipped
+checks and no pytest warnings. The 34 new focused tests cover canonical fees,
+FIFO partial sales, multiple lots, reinvested acquisition basis, splits/reverse
+splits, closed positions, positive/negative/exact-zero returns, zero/missing basis,
+missing/stale prices, absent FX evidence, duplicate identities, source mismatches,
+canonical currency conversion, six-column formatting, escaping, partial scope
+and independent models. Existing 47 report/visual checks also pass.
+
+All 126 retained V6.7.8 definitions remain unchanged. Nine synthetic controlled
+comparisons match exactly. The confidential current-export comparison passes
+all 33 shared fields against V6.7.8 with identical captured prices, FX, dates
+and event evidence. All 34 reliably valued private stock/fund positions reconcile
+canonical current value, remaining acquisition basis, open P/L and simple return.
+Financial fields match the previously captured release baseline; only the
+operational derivative days-open counter advances with the calendar date.
+
+Offline HTML passes 1440, 1024 and 390 px layouts, all five TWR controls, CSP and
+injection checks without network requests. Return badges remain separate from
+rankings and names, including long names, large figures, losses, exact zero and
+unavailable states. Both six-column tables use the shared financial formatting;
+All Holdings retains operational details and public instrument identifiers.
+Normal and stress PDFs are rendered and inspected; one-page landscape A4, text
+margins, holdings values, income keys and material qualifications are preserved.
+The optional small PDF Open indicator is omitted if its text cannot fit.
+
+Generic Windows packaging passes frozen worker, PDF/HTML, scope and persisted
+event smoke tests with Python absent from PATH. All 4,228 file hashes, ZIP CRC,
+SHA-256 and actual private-record marker scans pass. No private source, event
+registry, capture or generated report is included. Source/history audits retain
+the empty public exceptional-event registry and unchanged canonical reference.
+Public uploads and restricted derivative scrapers remain disabled.
+
+
+The actual installed v1.0.8 application is launched through the existing desktop
+shortcut and verified to bind only to 127.0.0.1. The exact confidential export
+passes the live Yahoo/default-benchmark GUI workflow without event confirmation:
+eight stock/fund metrics, two charts, five TWR periods, return badges, detailed
+tables and matching PDF/HTML downloads. Desktop/mobile screens and the final
+normal-size PDF are inspected. Seven unpriced derivatives correctly leave full
+portfolio value and profit unavailable. Closing, reopening, uploading the same
+export again and clearing pass; private evidence persists and runtime folders
+are cleaned. The installed files match the generic release manifest.

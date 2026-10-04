@@ -6,7 +6,7 @@ import pandas as pd
 from pulse.core import build_snapshot_data
 from pulse.scopes import availability, blocker_message
 
-MODEL_SCHEMA_VERSION = 4
+MODEL_SCHEMA_VERSION = 5
 
 @dataclass(frozen=True)
 class Metric:
@@ -201,15 +201,15 @@ def prepare(result, report_date=None, analysis_scope=None):
     periods = [r for r in result['period_performance'] if r.get('period_key') in {'1M','3M','YTD','1Y','MAX'} and r.get('available') is True] if not stock_blocked and history_ok and dividends_sound else []
     full_totals = dict(value=number(life.get('lifetime_current_tracked_open_value_eur')) if not blocked and dependencies['full_valued'] else None,
                        profit=number(life.get('lifetime_economic_profit_eur')) if not blocked and not income_blocked and dependencies['full_valued'] and life.get('lifetime_profit_status')=='OK' else None)
-    holdings = [dict(name=r.get('security_name','Security'),quantity=r.get('current_quantity'),value=number(r.get('live_current_value_eur')),
-                     quote_date=r.get('live_price_date'),status='Valued' if number(r.get('live_current_value_eur')) is not None else 'Unpriced')
-                for r in result['holdings'] if r.get('position_status')=='ACTIVE'] if not stock_blocked else []
     from pulse.composition import composition
+    from pulse.holding_performance import project_holdings
     composition_date=report_date
     if result.get('synthetic'):
         dated=pd.to_datetime(result['historical_metrics'].get('historical_valuation_date'),errors='coerce')
         if pd.notna(dated):composition_date=dated.date()
     composition_data=composition(result,composition_date,not stock_blocked,bool(partial))
+    holdings,holding_issues=project_holdings(result,snapshot,composition_date) if not stock_blocked else ([],[])
+    issues.extend(holding_issues)
     return dict(composition=composition_data,metrics=metrics,by_key=by_key,snapshot=snapshot,nav=nav,issues=list(dict.fromkeys(issues)),
                 health='Review required' if blocked or income_blocked else 'Partial' if issues else 'Complete',
                 insights=insights[:5],periods=periods,raw=complete_result,valuation_missing=missing,

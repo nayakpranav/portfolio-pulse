@@ -8,7 +8,7 @@ import importlib
 import pulse.charts as _charts
 if getattr(_charts,'CHART_SCHEMA_VERSION',0)!=2:importlib.reload(_charts)
 import pulse.reporting as _reporting
-if getattr(_reporting,'PRESENTATION_SCHEMA_VERSION',0)!=2:importlib.reload(_reporting)
+if getattr(_reporting,'PRESENTATION_SCHEMA_VERSION',0)!=3:importlib.reload(_reporting)
 import pulse.composition as _composition
 if getattr(_composition,'COMPOSITION_SCHEMA_VERSION',0)!=1:importlib.reload(_composition)
 from pulse.benchmarks import PRESETS, validate_ticker
@@ -30,14 +30,14 @@ from pulse.runner import run_analysis,AnalysisError
 from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
-if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=4:importlib.reload(_adapter)
-if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=6:importlib.reload(_pdf)
+if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=5:importlib.reload(_adapter)
+if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=7:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 import pulse.html_report as _html_report
-if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=4:importlib.reload(_html_report)
+if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=5:importlib.reload(_html_report)
 from pulse.html_report import html_report, HTML_SCHEMA_VERSION
-from pulse.reporting import HOLDING_CSS, holding_cards
+from pulse.reporting import HOLDING_CSS, holding_cards, table_frame, HOLDING_EXPLANATION
 from pulse.composition import COMPOSITION_CSS, composition_panel
 
 def store_reports(model):
@@ -284,11 +284,12 @@ with holdings_col:
 st.markdown('### Your Five Largest Holdings')
 st.caption('Valued stocks/funds · no constituent look-through. Thin bars show size relative to the largest holding; percentages show allocation.')
 st.markdown(holding_cards(snap['top_holdings']),unsafe_allow_html=True)
+st.caption(HOLDING_EXPLANATION)
 with st.expander('See Top 10 holdings'):
-    st.dataframe(pd.DataFrame(snap['top_holdings']).rename(columns={'name':'Holding','value':'Value EUR','weight_pct':'Weight %'}),hide_index=True,use_container_width=True)
+    st.dataframe(table_frame(snap['top_holdings']),hide_index=True,use_container_width=True)
     st.caption('Closed and derecognized positions are excluded. Unpriced holdings are not assigned zero.')
 with st.expander('All current stock/fund holdings'):
-    st.dataframe(pd.DataFrame(model['holdings']).rename(columns={'name':'Holding','quantity':'Quantity','value':'Value EUR','quote_date':'Quote date','status':'Valuation'}),hide_index=True,use_container_width=True)
+    st.dataframe(table_frame(model['holdings'],True),hide_index=True,use_container_width=True)
 
 st.markdown('### What Stands Out?')
 for insight in model['insights']:
