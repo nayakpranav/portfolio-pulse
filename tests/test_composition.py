@@ -75,3 +75,13 @@ def test_readable_exact_labels_or_monthly_key_no_silent_rounding():
     months[0]=dict(label='Jan',total=1234567890123.45,status='partial')
     assert income_label_layout(months,270)==('key',2)
     assert monthly_label(months[0])=='1,234,567,890,123.45*'
+
+
+@pytest.mark.parametrize('values,kinds,labels',[
+    ([100,200,100],['STOCK','FUND',None],['Top 3: 100.0%','Remaining: 0.0%','Stocks: 25.0%','ETFs/funds: 50.0%','Unclassified: 25.0%']),
+    ([1,2,3,4,5,6],['STOCK']*6,['Top 5: 95.2%','Remaining: 4.8%','Stocks: 100.0%','ETFs/funds: 0.0%'])])
+def test_composition_legend_colon_spacing_preserves_values(values,kinds,labels):
+    data=composition(result(values,kinds),DAY);before=deepcopy(data)
+    html=composition_panel(data)
+    for label in labels:assert label in html
+    assert data==before

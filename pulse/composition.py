@@ -53,6 +53,8 @@ def composition(result,as_of,accounting_valid=True,partial=False):
     if partial:out['note']='Partial scope: unaffected securities only. '+out['note']
     return out
 
+COMPOSITION_SCHEMA_VERSION=1
+
 COMPOSITION_CSS='''.composition{min-width:0}.composition-numbers{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:14px 0 20px}.composition-number{font-size:1.75rem;font-weight:700;color:#a8ebbc;font-variant-numeric:tabular-nums}.composition-label{color:#91a7bc;font-size:.875rem}.composition-bar{height:10px;border-radius:5px;overflow:hidden;display:flex;background:#24415e;margin:10px 0}.composition-segment{height:100%;flex-shrink:0}.composition-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.875rem;margin-bottom:22px;color:#f6f9fd}.composition-note{font-size:.85rem;color:#91a7bc;line-height:1.5;overflow-wrap:anywhere}.composition-key{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}@media(max-width:390px){.composition-numbers{gap:12px}.composition-number{font-size:1.55rem}}'''
 
 def composition_panel(data):
@@ -63,8 +65,8 @@ def composition_panel(data):
     def bar(items,label):
         if data['top_pct'] is None:return '<p class="composition-note">'+escape(label)+': unavailable.</p>'
         segments=''.join('<span class="composition-segment" style="width:'+f'{value:.8f}'+'%;background:'+color+'"></span>' for title,value,color in items)
-        legend=''.join('<span><i class="composition-key" style="background:'+color+'" aria-hidden="true"></i>'+escape(title)+' '+percent(value)+'</span>' for title,value,color in items)
-        return '<div class="composition-label">'+escape(label)+'</div><div class="composition-bar" role="img" aria-label="'+escape('; '.join(title+' '+percent(value) for title,value,color in items),quote=True)+'">'+segments+'</div><div class="composition-legend">'+legend+'</div>'
+        legend=''.join('<span><i class="composition-key" style="background:'+color+'" aria-hidden="true"></i>'+escape(title)+': '+percent(value)+'</span>' for title,value,color in items)
+        return '<div class="composition-label">'+escape(label)+'</div><div class="composition-bar" role="img" aria-label="'+escape('; '.join(title+': '+percent(value) for title,value,color in items),quote=True)+'">'+segments+'</div><div class="composition-legend">'+legend+'</div>'
     parts.append(bar([(top,data['top_pct'],'#42cbea'),('Remaining',data['remaining_pct'],'#24415e')],'Concentration of reliably valued assets'))
     items=[('Stocks',data['stock_pct'],'#42cbea'),('ETFs/funds',data['fund_pct'],'#a78bfa')]
     if data['unclassified_pct'] is not None and data['unclassified_pct']>0:items.append(('Unclassified',data['unclassified_pct'],'#91a7bc'))

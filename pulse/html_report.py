@@ -15,7 +15,7 @@ from pulse.pdf import monthly_amount, monthly_label
 from pulse.composition import COMPOSITION_CSS, composition_panel
 from pulse.reporting import HOLDING_CSS, holding_cards, money
 
-HTML_SCHEMA_VERSION = 3
+HTML_SCHEMA_VERSION = 4
 SCRIPT = '''document.querySelectorAll('[data-period]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-period]').forEach(function(other){other.setAttribute('aria-pressed','false');});button.setAttribute('aria-pressed','true');document.getElementById('period-value').textContent=button.dataset.display;document.getElementById('period-dates').textContent=button.dataset.dates;});});'''
 STYLE = CSS_TOKENS+'''*{box-sizing:border-box}body{margin:0;background:var(--fl-background);color:var(--fl-text);font:16px/1.55 system-ui,sans-serif}main{max-width:1300px;margin:auto;padding:32px}
 h1{font-size:2.5rem;letter-spacing:-1px;margin:0}h2{font-size:1.3125rem;letter-spacing:-.2px;margin:28px 0 12px}h3{font-size:1rem;margin:0 0 8px}p{margin:8px 0}.muted,small{color:var(--fl-muted)}
@@ -85,7 +85,7 @@ def income_chart(months):
         else:svg.append(svg_text('—',x+14,baseline-8,fill='#91a7bc',font_size=14,text_anchor='middle'))
         svg.append(svg_text(m['label'],x+14,264,fill='#91a7bc',font_size=12,text_anchor='middle'))
     svg.extend([svg_text('EUR · hover bars for amounts',48,290,fill='#91a7bc',font_size=13),'</svg>'])
-    key='<div class="monthly-values" aria-label="Exact monthly income in EUR">'+''.join('<span>'+text(m['label'])+' <strong>'+text(monthly_label(m))+'</strong></span>' for m in months)+'</div><p class="muted">EUR · * partial coverage · —/dash means uncovered, not zero.</p>'
+    key='<div class="monthly-values" aria-label="Exact monthly income in EUR">'+''.join('<span>'+text(m['label'])+': <strong>'+text(monthly_label(m))+'</strong></span>' for m in months)+'</div><p class="muted">EUR · * partial coverage · —/dash means uncovered, not zero.</p>'
     return ''.join(svg)+key
 
 def html_report(model):

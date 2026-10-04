@@ -20,7 +20,7 @@ def panel(c,x,y,width,height):
     c.setFillColor(HexColor(COLORS['surface']));c.setStrokeColor(GRID)
     c.setLineWidth(.4);c.roundRect(x,y,width,height,7,fill=1,stroke=1)
 
-PDF_SCHEMA_VERSION = 5
+PDF_SCHEMA_VERSION = 6
 
 def ascii_text(value):
     return str(value).replace('€','EUR ').replace('—','-').replace('–','-').encode('latin-1','replace').decode('latin-1')
@@ -54,7 +54,7 @@ def income_label_layout(months,width):
     # Exact two-decimal labels only when all neighboring cells can hold them
     # at a readable size. Otherwise associate values with full month names.
     if all(stringWidth(monthly_label(m),'Helvetica',7)<=width/12-2 for m in months):return 'bars',12
-    columns=3 if all(stringWidth(m['label']+' '+monthly_label(m),'Helvetica',7.5)<=width/3-8 for m in months) else 2
+    columns=3 if all(stringWidth(m['label']+': '+monthly_label(m),'Helvetica',7.5)<=width/3-8 for m in months) else 2
     return 'key',columns
 
 def summary_pdf(model):
@@ -157,7 +157,7 @@ def summary_pdf(model):
         _label(c,m['label'][0],x+gw/24,gy-19 if mode=='bars' else gy-10,6,MUTED,align='center')
     if mode=='key':
         for j,m in enumerate(months):
-            row,col=divmod(j,columns);label=m['label']+' '+monthly_label(m)
+            row,col=divmod(j,columns);label=m['label']+': '+monthly_label(m)
             _label(c,label,gx+col*gw/columns,iy+(46 if columns==3 else 66)-row*10,7.5,WHITE if monthly_amount(m) is not None else MUTED)
     _label(c,'EUR | * partial / outline | - uncovered, not zero',ix+14,iy+3,6.5,MUTED)
     # Compact holdings strip with the canonical valued-stock/fund denominator.
@@ -197,8 +197,8 @@ def summary_pdf(model):
         _label(c,line,85,y-2,8,MUTED);y-=10
     comp=model.get('composition',{})
     if y>=46 and comp.get('top_pct') is not None:
-        detail=f"Composition: {comp['active_count']} active stocks/funds; {comp['valued_count']} reliably valued; top {comp['top_count']} {comp['top_pct']:.1f}%; stocks {comp['stock_pct']:.1f}%, funds {comp['fund_pct']:.1f}%"
-        if comp['unclassified_pct']>0:detail+=f", unclassified {comp['unclassified_pct']:.1f}%"
+        detail=f"Composition: {comp['active_count']} active stocks/funds; {comp['valued_count']} reliably valued; top {comp['top_count']}: {comp['top_pct']:.1f}%; stocks: {comp['stock_pct']:.1f}%, funds: {comp['fund_pct']:.1f}%"
+        if comp['unclassified_pct']>0:detail+=f", unclassified: {comp['unclassified_pct']:.1f}%"
         if comp['partial']:detail+=' (unaffected partial scope)'
         _label(c,_truncate(detail,w-58,8),29,43,8,MUTED)
     _label(c,'Unofficial independent analysis. Not affiliated with Trade Republic. Not a tax certificate or investment recommendation.',29,min(y-4,29),8,MUTED)

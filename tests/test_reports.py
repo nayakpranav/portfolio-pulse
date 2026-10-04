@@ -234,7 +234,7 @@ def test_hot_deployment_refreshes_presentation_helpers_and_paired_reports(report
     assert charts.benchmark_alias(model).startswith('Synthetic MSCI World ETF')
     assert 'stale holding presentation' not in app.session_state['html'].decode()
     assert 'width:32px' in app.session_state['html'].decode()
-    assert app.session_state['export_schema']==(5,3)
+    assert app.session_state['export_schema']==(6,4)
     assert len(app.metric)==8 and app.session_state['pdf'].startswith(b'%PDF')
 
 
@@ -266,6 +266,8 @@ def test_exact_monthly_pdf_and_html_values_with_coverage(report_results,large):
     html=html_report(model).decode()
     for month in months:
         assert monthly_label(month) in text and monthly_label(month) in html
+        assert month['label']+': <strong>'+monthly_label(month)+'</strong>' in html
+        if large:assert month['label']+': '+monthly_label(month) in text
     assert 'uncovered, not zero' in text and '45.67*' in text
     page=pymupdf.open(stream=data,filetype='pdf')[0]
     spans=[s for b in page.get_text('dict')['blocks'] for line in b.get('lines',[]) for s in line['spans']]
