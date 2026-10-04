@@ -21,6 +21,14 @@ returns, capital/recovery and recognized income. Tracked value and lifetime
 profit remain unavailable when required valuations are missing. Dated manual
 inputs remain optional inside the advanced private-review expander.
 
+When derivative quotes are missing, **Stocks & funds** becomes the default scope.
+Its value and reconciled lifetime profit exclude derivatives and cash interest.
+Capital and recovery retain their full-ecosystem definition. Switch to **Full
+portfolio** to see its dependent totals marked unavailable. Holdings, history and
+the benchmark remain available when their own accounting/data validates. Specific
+accounting blockers are displayed separately from valuation warnings.
+See [scope definitions](ANALYSIS_SCOPES.md).
+
 The application binds only to `127.0.0.1`, makes bounded Yahoo/OpenFIGI requests,
 and retains the existing input, worker, session and PDF security controls.
 It does not expose a public tunnel. The public Streamlit deployment stays synthetic.

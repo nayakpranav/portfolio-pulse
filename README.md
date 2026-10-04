@@ -18,6 +18,13 @@ Download the generic Windows portable package from [Releases](https://github.com
 
 ## Run
 
+Personal analysis defaults to **Stocks & funds** when derivative quotes are missing.
+Valid value, reconciled profit, holdings, history and matched benchmark results
+remain visible; full-portfolio totals remain incomplete. Capital/recovery retain
+their full-ecosystem scope. [Metric availability](docs/ANALYSIS_SCOPES.md).
+Owner-only website uploads remain independently gated; see the
+[hosting assessment and remaining prerequisites](docs/OWNER_HOSTING_ASSESSMENT.md).
+
 Use Python 3.12. Create a virtual environment, install the pinned dependencies,
 then start the application:
 

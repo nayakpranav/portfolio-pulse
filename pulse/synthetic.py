@@ -35,6 +35,11 @@ def fixture(kind='demo'):
         rows.append(row('2026-06-01','SELL',shares=30,amount=900,price=30))
     if kind == 'derivatives':
         rows += [row('2026-01-12','BUY',i=7,asset='DERIVATIVE',shares=2,price=5,amount=-10,fee=-1),row('2026-02-12','SELL',i=7,asset='DERIVATIVE',shares=2,price=7,amount=14,fee=-1)]
+    if kind == 'open_derivatives':
+        rows += [row('2026-01-12','BUY',i=i,asset='DERIVATIVE',shares=2,price=5,amount=-10,fee=-1) for i in range(7,14)]
+        rows += [row('2026-02-12','SELL',i=7,asset='DERIVATIVE',shares=1,price=7,amount=7,fee=-1),
+                 row('2026-02-16','DIVIDEND',amount=4,tax=-1,category='CASH'),
+                 row('2026-03-20','INTEREST_PAYMENT',asset='',amount=2.5,tax=-.5,category='CASH')]
     # A source evidence cutoff is a fabricated cash movement, not invented income.
     rows.append(row('2026-09-30','CUSTOMER_INBOUND',asset='',amount=1,category='CASH'))
     if kind == 'short_history':

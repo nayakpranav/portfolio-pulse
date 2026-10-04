@@ -4,8 +4,11 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas
 from pulse import core
 from pulse.charts import wealth_range
+from pulse.scopes import blocker_message
 from investment_snapshot_pdf import (_panel,_label,_truncate,_holding_name_lines,_kpi_icon,
     BG,WHITE,MUTED,CYAN,BLUE,GREEN,AMBER,GRID)
+
+PDF_SCHEMA_VERSION = 2
 
 def ascii_text(value):
     return str(value).replace('€','EUR ').replace('—','-').replace('–','-').encode('latin-1','replace').decode('latin-1')
@@ -25,6 +28,10 @@ def summary_pdf(model):
     tx = data['latest_transaction_date']; vd = data['valuation_date']
     _label(c,f"Generated {data['report_date']:%d %b %Y} | Transactions to {tx:%d %b %Y}" if tx else 'Transaction cutoff unavailable',w-28,h-44,7,MUTED,align='right')
     _label(c,f'Stock/fund history to {vd:%d %b %Y}' if vd else 'Historical valuation unavailable',w-28,h-57,7,MUTED,align='right')
+    full=model['full_totals']
+    value_text=f"EUR {full['value']:,.2f}" if full['value'] is not None else 'Unavailable'
+    profit_text=f"EUR {full['profit']:,.2f}" if full['profit'] is not None else 'Unavailable'
+    _label(c,f"Analysis: {model['scope_label']} | Full portfolio value: {value_text} | Full lifetime profit: {profit_text}",29,h-68,6.7,AMBER if None in full.values() else MUTED)
     card_w = (w-74)/4
     for i,metric in enumerate(model['metrics'][:4]):
         x = 28+i*(card_w+6); y=h-143
@@ -44,7 +51,8 @@ def summary_pdf(model):
     px,py,pw,ph=28,199,478,170
     _panel(c,px,py,pw,ph)
     _label(c,'STOCK/FUND WEALTH VS MATCHED BENCHMARK',px+12,py+ph-20,9,WHITE,'Helvetica-Bold')
-    _label(c,'Cash and derivatives excluded | EUR',px+12,py+ph-35,7,MUTED)
+    estimated=model['raw']['historical_metrics'].get('historical_analytics_status')=='OK_WITH_LOW_CONFIDENCE_FALLBACK'
+    _label(c,'Cash and derivatives excluded | EUR'+(' | History includes price estimates' if estimated else ''),px+12,py+ph-35,7,MUTED)
     nav=model['nav']
     series=[]
     for column,color,label in [('stockfund_value_eur',CYAN,'Actual'),('benchmark_pme_value_eur',BLUE,ascii_text(model['raw'].get('benchmark_name','Matched benchmark')))]:
@@ -114,10 +122,14 @@ def summary_pdf(model):
     observation = model['insights'][0]
     _label(c,_truncate(ascii_text(observation),w-58,7.2),29,87,7.2,CYAN)
     if model['issues']:
-        derivative_gap=any(r.get('live_price_eur') is None for r in model['raw'].get('active_derivatives',[]))
-        detail='Missing derivative valuations: tracked value and lifetime profit unavailable.' if derivative_gap and model['by_key']['value'].value is None else '; '.join(model['issues'][:2])
-        _label(c,_truncate('Data health: '+ascii_text(detail),w-58,6.5),29,73,6.5,AMBER)
-    _label(c,'Tracked value/profit may include derivatives; returns and holdings cover stocks/funds. Recovery is not withdrawable cash.',29,48,6.4,MUTED)
+        dependencies=model['dependencies']
+        primary=[blocker_message(check) for check in sorted(dependencies['accounting_checks'],key=lambda check:check=='unknown_transaction_rows')]
+        if dependencies['unexplained_accounting']:primary.append('Unclassified accounting blocker: dependent figures remain unavailable.')
+        if not primary:primary=[issue for issue in model['issues'] if 'derivative valuations:' not in issue]
+        _label(c,_truncate('Data health: '+ascii_text(primary[0] if primary else 'Review required'),w-58,6.5),29,73,6.5,AMBER)
+        detail=f"Missing derivative valuations: {dependencies['missing_derivative']}; full portfolio value and profit unavailable." if dependencies['missing_derivative'] else primary[1] if len(primary)>1 else ''
+        if detail:_label(c,_truncate(ascii_text(detail),w-58,6.5),29,61,6.5,AMBER)
+    _label(c,'Stock/fund profit excludes derivatives and cash interest. Capital/recovery cover the full ecosystem; recovery is not withdrawable cash.',29,48,6.1,MUTED)
     _label(c,'Unofficial independent analysis. Not affiliated with Trade Republic. Not a tax certificate or investment recommendation.',29,35,6.4,MUTED)
     c.showPage();c.save()
     return output.getvalue()

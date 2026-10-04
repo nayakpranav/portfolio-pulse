@@ -117,6 +117,13 @@ def main():
         from pulse.pdf import summary_pdf
         data,prices=fixture();model=prepare(run_analysis(data,prices=prices))
         report={'synthetic_worker':True,'metrics':len(model['metrics']),'pdf':summary_pdf(model).startswith(b'%PDF'),'personal_mode':personal_environment()['FOLIOLENS_MODE']=='personal'}
+        data,prices=fixture('open_derivatives')
+        scoped=prepare(run_analysis(data,prices=prices),analysis_scope='stocks_funds')
+        report.update(stock_fund_scope_metrics=sum(m.value is not None for m in scoped['metrics']),
+                      unpriced_derivatives=scoped['dependencies']['missing_derivative'],
+                      full_portfolio_partial=all(v is None for v in scoped['full_totals'].values()),
+                      scoped_pdf=summary_pdf(scoped).startswith(b'%PDF'))
+        assert report['stock_fund_scope_metrics']==8 and report['unpriced_derivatives']==7 and report['full_portfolio_partial'] and report['scoped_pdf']
         Path(sys.argv[2]).write_text(json.dumps(report));return
     graphical_main()
 

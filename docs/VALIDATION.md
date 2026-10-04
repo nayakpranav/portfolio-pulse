@@ -176,3 +176,33 @@ The same captured-input comparison again passed all 27 shared fields exactly.
 The safe suite passed 81 tests, including automatic private-registry revalidation,
 changed-event blocking, export binding and launcher mode/loopback controls.
 Final graphical/package/release verification is recorded in the handoff.
+
+## Scoped reporting repair (issue 1)
+
+A controlled missing-private-evidence run reproduced seven suppressed non-income
+cards despite valid raw stock/fund MWR, benchmark MWR and historical statuses.
+The actual accounting blocker was an unmatched security-removal classification;
+the old PDF masked it with a derivative-only warning. A fresh personal run using
+the private established evidence completed accounting. Profile lookup now also
+works without an explicit directory override; event matching guards are unchanged.
+
+Preset and custom real-export controlled acceptance produced eight available
+Stocks & funds cards, complete current stock/fund holdings, the three principal
+charts and five TWR periods. Full-portfolio value/profit stayed unavailable for
+unpriced derivatives. Stock/fund profit reconciled across canonical FIFO, ledger
+cash flows and per-security contribution rows, without derivative/cash-interest
+aggregation. No manual derivative quotations were used.
+
+All 30 serialized canonical fields (including the previous 27 and three new audit
+sources), eight scoped metrics, holdings, monthly income and diagnostics matched
+read-only V6.7.8 exactly at identical captured market/FX inputs. All 126 retained
+definitions remain unchanged. The nine original synthetic comparisons passed.
+
+Focused cases cover seven missing derivative quotes, derivative-only basis gaps,
+unmatched stock events, missing current stock quotes with valid history, failed
+benchmarks, incomplete history, independent income, profit reconciliation, scope
+switching, session-specific PDFs/clearing and safe hot-release display migration.
+Actual private preset/custom PDFs rendered as one-page A4 landscape with explicit
+selected/full scopes and passed text bounds and visual inspection. Final safe-suite,
+Windows packaging, installed workflow and public deployment results are recorded
+in the release handoff. Private acceptance artifacts remain outside Git and CI.

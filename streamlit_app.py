@@ -10,7 +10,7 @@ from pulse.mode import uploads_enabled, mode
 # A hot deployment can rerun this file before refreshing imported helper modules.
 import importlib
 import pulse.private_config as _private_config
-if not hasattr(_private_config,'personal_defaults'):
+if not hasattr(_private_config,'personal_defaults') or getattr(_private_config,'CONFIG_SCHEMA_VERSION',0)!=2:
     importlib.reload(_private_config)
 from pulse.private_config import event_candidates,export_digest,load_private_config,personal_defaults
 from pulse.runner import validate_upload
@@ -20,6 +20,10 @@ import pandas as pd
 import streamlit as st
 from pulse.runner import run_analysis,AnalysisError
 from pulse.synthetic import fixture
+import pulse.adapter as _adapter
+import pulse.pdf as _pdf
+if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=2:importlib.reload(_adapter)
+if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=2:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 
@@ -50,7 +54,7 @@ with st.sidebar:
         st.caption('UTF-8 CSV · up to 5 MB / 10,000 rows')
     else:
         st.caption('Public demo · real CSV analysis is available only in the documented local personal-use workflow.')
-        st.link_button('Local workflow documentation','https://github.com/nayakpranav/portfolio-pulse#run')
+        st.link_button('Get FolioLens Personal for Windows','https://github.com/nayakpranav/portfolio-pulse/releases/latest')
     st.markdown('**Benchmark**')
     options = ['MSCI World ETF (default)','Global All-Country ETF','S&P 500 ETF']
     if upload_enabled: options.append('Custom Yahoo Finance ticker')
@@ -76,7 +80,7 @@ with st.sidebar:
     demo = st.button('Try with Demo Portfolio',type='secondary' if upload_enabled else 'primary',use_container_width=True,disabled=selection=='Custom Yahoo Finance ticker')
     if st.button('Clear session results',use_container_width=True):
         for key in list(st.session_state):
-            if key in {'model','pdf','input_digest','twr_period','start_demo'} or key.startswith(('event_','manual_')):
+            if key in {'model','pdf','input_digest','twr_period','start_demo','analysis_scope'} or key.startswith(('event_','manual_')):
                 st.session_state.pop(key,None)
         st.session_state.pop(f'upload_{upload_epoch}',None)
         st.session_state['upload_epoch'] = upload_epoch+1
@@ -89,6 +93,7 @@ with st.sidebar:
         content=uploaded.getvalue();digest=export_digest(content)
         if st.session_state.get('input_digest')!=digest:
             st.session_state.pop('model',None);st.session_state.pop('pdf',None)
+            st.session_state.pop('analysis_scope',None)
             for key in list(st.session_state):
                 if key.startswith(('event_','manual_')):st.session_state.pop(key,None)
             st.session_state['input_digest']=digest
@@ -128,6 +133,7 @@ start_demo = st.session_state.pop('start_demo',False)
 if demo or analyze or start_demo:
     # Remove stale results before a new run so a failed upload cannot show an old PDF.
     st.session_state.pop('model',None);st.session_state.pop('pdf',None)
+    st.session_state.pop('analysis_scope',None)
     data,prices = fixture() if demo or start_demo else (uploaded.getvalue(),None)
     try:
         with st.spinner('Reconstructing investments, income and matched performance…'):
@@ -148,9 +154,31 @@ if 'model' not in st.session_state:
             st.session_state['start_demo'] = True
             st.rerun()
         st.caption('The public demo uses fabricated transactions and prices. Real CSV analysis is available through the documented local personal-use workflow.')
+        st.link_button('Download the one-click Windows application','https://github.com/nayakpranav/portfolio-pulse/releases/latest')
+        st.caption('Extract the ZIP and double-click Open FolioLens Personal.exe. No Python installation or terminal commands are needed.')
     st.stop()
 
-model = st.session_state['model']; snap = model['snapshot']
+model = st.session_state['model']
+if model.get('model_schema_version')!=_adapter.MODEL_SCHEMA_VERSION:
+    model=prepare(model['raw'],report_date=model['snapshot']['report_date'])
+    st.session_state['model']=model;st.session_state['pdf']=summary_pdf(model)
+if upload_enabled:
+    scope = st.radio('Analysis scope',['Stocks & funds','Full portfolio'],horizontal=True,
+                     index=0 if model['analysis_scope']=='stocks_funds' else 1,key='analysis_scope')
+    scope_key='stocks_funds' if scope=='Stocks & funds' else 'full_portfolio'
+    if scope_key!=model['analysis_scope']:
+        model=prepare(model['raw'],report_date=model['snapshot']['report_date'],analysis_scope=scope_key)
+        st.session_state['model']=model;st.session_state['pdf']=summary_pdf(model)
+st.caption(f"Analysis scope: {model['scope_label']}. Returns, benchmark and holdings always cover stocks/funds. Capital committed and recovery cover the full investment ecosystem.")
+if any(v is None for v in model['full_totals'].values()):
+    if model['dependencies']['ecosystem_accounting'] and model['dependencies']['missing_derivative']:
+        st.warning('Full portfolio value and lifetime profit are unavailable: current derivative quotations are missing. Independently valid stock/fund results remain available.')
+    else:
+        st.warning('Full portfolio results are incomplete. Accounting and valuation causes are listed under Data health and coverage.')
+if model['dependencies']['accounting_checks'] or model['dependencies']['unexplained_accounting']:
+    from pulse.scopes import blocker_message
+    for check in model['dependencies']['accounting_checks']:st.error(blocker_message(check))
+snap = model['snapshot']
 heading,download = st.columns([3,1])
 with heading:
     st.markdown(f'**Data health · {model["health"]}**')
@@ -163,7 +191,7 @@ with st.expander('Data health and coverage'):
         for issue in model['issues']:st.text('• '+issue)
     else:st.write('No blocking issues in the tracked analytical scope.')
     st.caption('Tracked lifetime results may include derivatives and income. Historical returns and benchmark comparison cover stocks/funds, excluding brokerage cash. Derivatives require a verified quote or explicit dated manual valuation; missing valuations block dependent totals.')
-    if model['valuation_missing']:st.warning('Holdings rankings cover only valued stocks/funds; unpriced positions are omitted.')
+    if model['dependencies']['missing_stock']:st.warning('Holdings rankings cover only valued stocks/funds; unpriced stock/fund positions are omitted. See all current holdings below.')
 
 for offset in (0,4):
     columns = st.columns(4)
@@ -172,7 +200,7 @@ for offset in (0,4):
             st.metric(metric.label,metric.display,help=metric.explanation)
             st.caption(metric.scope)
             if metric.value is None:
-                st.caption('Unavailable — data requires review' if metric.status!='DISABLED' else 'Comparison disabled')
+                st.caption(metric.status.replace('_',' ').capitalize() if metric.status!='DISABLED' else 'Comparison disabled')
 
 st.markdown('### Portfolio versus Benchmark')
 st.caption('Stock/fund wealth · EUR · cash-flow-matched benchmark · excludes cash and derivatives')
@@ -225,6 +253,8 @@ with holdings_col:
     with st.expander('See Top 10 holdings'):
         st.dataframe(pd.DataFrame(snap['top_holdings']).rename(columns={'name':'Holding','value':'Value EUR','weight_pct':'Weight %'}),hide_index=True,use_container_width=True)
         st.caption('Closed and derecognized positions are excluded. Unpriced holdings are not assigned zero.')
+    with st.expander('All current stock/fund holdings'):
+        st.dataframe(pd.DataFrame(model['holdings']).rename(columns={'name':'Holding','quantity':'Quantity','value':'Value EUR','quote_date':'Quote date','status':'Valuation'}),hide_index=True,use_container_width=True)
 
 st.markdown('### What Stands Out?')
 for insight in model['insights']:
@@ -234,6 +264,6 @@ with st.expander('Understanding Your Capital'):
     life=model['raw']['lifetime_metrics']
     for label,key in [('User-funded investment outflows','lifetime_user_funded_investment_outflows_eur'),('Gross acquisition outflows','lifetime_gross_investment_outflows_eur')]:
         value=life.get(key)
-        st.write(f'{label}: €{value:,.2f}' if value is not None and model['raw']['accounting_status']=='COMPLETE' else f'{label}: Unavailable — data requires review')
+        st.write(f'{label}: €{value:,.2f}' if value is not None and model['dependencies']['ecosystem_accounting'] else f'{label}: Unavailable — data requires review')
     st.write('Net user capital committed subtracts canonical recovery, including interest, from user-funded investment outflows. Recovery is a lifetime accounting measure, not freely withdrawable cash. Promotional funding changes user capital separately from economic profit.')
 st.caption('FolioLens · Independent analytical software · Missing values are never substituted with zero.')

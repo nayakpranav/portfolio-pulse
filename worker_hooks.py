@@ -26,11 +26,12 @@ def install_hooks(ns):
                         matched_exchange='SYNTHETIC',matched_currency='EUR',matched_quote_type='ETF' if asset_class=='FUND' else 'EQUITY')
         def latest(ticker):
             data = securities.get(ticker,{})
-            return dict(price_native=np.nan if data.get('missing') else data.get('end',np.nan),currency='EUR',
-                        price_date=config['asof'],source_col='Close',status='MISSING' if data.get('missing') else 'OK',error='',label='Synthetic controlled price')
+            missing = data.get('missing') or data.get('missing_current')
+            return dict(price_native=np.nan if missing else data.get('end',np.nan),currency='EUR',
+                        price_date=config['asof'],source_col='Close',status='MISSING' if missing else 'OK',error='',label='Synthetic controlled price')
         def history(ticker,start_date,end_date):
             data = securities.get(ticker, config.get('benchmarks', {'IWDA.AS': config.get('benchmark', {})}).get(ticker,{}))
-            if not data or data.get('missing'):
+            if not data or data.get('missing') or data.get('missing_history'):
                 return pd.DataFrame(), 'EUR','NO_HISTORY','Controlled missing price'
             full = pd.date_range('2025-01-06',config['asof'],freq='B')
             prices = pd.Series(np.linspace(data['start'],data['end'],len(full)),index=full)
@@ -98,6 +99,15 @@ def write_results(ns):
              'transaction_support_matrix','valuation_diagnostics','corporate_action_audit',
              'dividend_reinvestment_events','worthless_derecognition_events','stockfund_concentration']
     result = {name:serialize(ns[name]) for name in names}
+    # Expose existing canonical sources, without rerunning or changing accounting.
+    result['scope_sources'] = serialize({
+        'stockfund_current_value_eur': ns['stock_live_value'],
+        'stockfund_open_pl_eur': ns['stock_unrealized'],
+        'stockfund_realized_pl_eur': ns['lifetime_metrics']['lifetime_stock_realized_pl_eur'],
+        'net_dividends_eur': ns['lifetime_metrics']['lifetime_net_dividend_recovery_eur'],
+    })
+    result['lifetime_cashflow_ledger'] = serialize(ns['lifetime_cashflow_ledger'])
+    result['derivative_ledger'] = serialize(ns['derivative_ledger'])
     result['latest_transaction_date'] = serialize(ns['max_date'])
     result['benchmark_identity']=ns.get('_foliolens_benchmark',{})
     result['provider_diagnostics']=ns.get('_foliolens_transport',{})

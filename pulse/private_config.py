@@ -9,6 +9,8 @@ from datetime import date
 from pulse import core
 from portfolio_core import canonical_column_mapping
 
+CONFIG_SCHEMA_VERSION = 2
+
 def export_digest(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -77,6 +79,10 @@ def personal_defaults(data):
     """Read generic runtime configuration from the user's private environment."""
     import os
     directory=os.environ.get('FOLIOLENS_CONFIG_DIRECTORY')
+    if not directory:
+        from pulse.mode import mode, uploads_enabled
+        if mode()=='personal' and uploads_enabled() and os.environ.get('LOCALAPPDATA'):
+            directory=str(Path(os.environ['LOCALAPPDATA'])/'FolioLensPersonal')
     if not directory:return {}
     root=Path(directory)
     exact=root/'exports'/(export_digest(data)+'.json')

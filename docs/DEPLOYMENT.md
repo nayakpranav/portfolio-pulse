@@ -30,3 +30,7 @@ After release validate eight metrics, three charts, three synthetic benchmark
 illustrations and no comparison, period selection, income coverage, PDF download
 and clearing results at desktop and 390px mobile widths, in independent sessions.
 Never upload private reference data. See VALIDATION.md for recorded checks.
+
+Owner-gateway and provider-rights prerequisites remain unverified. See the
+[owner-hosting assessment](OWNER_HOSTING_ASSESSMENT.md) for platform limitations,
+all-route authorization requirements and evidence needed before hosted uploads.
