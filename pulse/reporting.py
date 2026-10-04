@@ -3,12 +3,12 @@ from html import escape
 from pulse.adapter import number
 from pulse.design import COLORS, CSS_TOKENS
 
-PRESENTATION_SCHEMA_VERSION = 3
+PRESENTATION_SCHEMA_VERSION = 4
 MINT = COLORS['mint']
 HOLDING_CSS = CSS_TOKENS+'''.holding-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0 24px;align-items:stretch}
 .holding-card{background:#112238;border:1px solid #24415e;border-radius:12px;padding:18px;display:flex;flex-direction:column;min-width:0}
 .holding-rank{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--fl-actual);color:var(--fl-background);font-size:.85rem;font-weight:750;font-variant-numeric:tabular-nums;flex-shrink:0}
-.holding-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:32px}.holding-return{max-width:calc(100% - 40px);font-size:.75rem;font-weight:650;line-height:1.3;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.return-positive{color:#a8ebbc}.return-negative{color:#fca5a5}.return-neutral,.return-unavailable{color:#91a7bc}
+.holding-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:32px}.holding-return{max-width:calc(100% - 40px);display:flex;align-items:center;justify-content:flex-end;gap:6px;font-size:.8rem;font-weight:650;line-height:1.3;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.holding-trend{width:18px;height:14px;flex-shrink:0}.holding-return-text{min-width:0;overflow-wrap:anywhere}.return-positive{color:#a8ebbc}.return-negative{color:#fca5a5}.return-neutral,.return-unavailable{color:#91a7bc}
 .holding-name{color:#f6f9fd;font-size:1.05rem;line-height:1.4;font-weight:650;overflow-wrap:anywhere;flex:1;margin:12px 0 20px}
 .holding-value{color:#a8ebbc;font-size:clamp(1.1rem,1.65vw,1.65rem);line-height:1.35;font-weight:750;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .holding-weight{color:#91a7bc;font-size:.85rem;margin-top:6px}
@@ -42,10 +42,11 @@ def signed_money(value):
 
 def return_badge(row):
     value=number(row.get('return_pct'));state=return_state(value)
-    arrow='↑ ' if state=='positive' else '↓ ' if state=='negative' else ''
-    label=arrow+signed_percent(value)
+    label=signed_percent(value)
+    path='M2 12 L7 7 L11 10 L20 2 M15 2 H20 V7' if state=='positive' else 'M2 2 L7 7 L11 4 L20 12 M15 12 H20 V7'
+    icon='<svg class="holding-trend" viewBox="0 0 22 16" aria-hidden="true" focusable="false"><path d="'+path+'" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' if state in {'positive','negative'} else ''
     explanation='Unrealized return on current shares versus remaining acquisition basis. '+str(row.get('performance_status','Source unavailable'))+'. Not annualized or lifetime total return.'
-    return '<span class="holding-return return-'+state+'" title="'+escape(explanation,quote=True)+'" aria-label="'+escape('Unrealized return: '+label+'. '+explanation,quote=True)+'">'+escape(label)+'</span>'
+    return '<span class="holding-return return-'+state+'" title="'+escape(explanation,quote=True)+'" aria-label="'+escape('Unrealized return: '+label+'. '+explanation,quote=True)+'">'+icon+'<span class="holding-return-text">'+escape(label)+'</span></span>'
 
 
 def table_rows(holdings,operational=False):

@@ -140,3 +140,17 @@ The one-page PDF retains its executive layout and monthly keys, with small Open
 return indicators above holding names where they fit. Extreme indicators that
 cannot fit are omitted rather than clipped; complete performance and operational
 details remain in HTML and the application. No detailed PDF table is added.
+
+
+## v1.0.9 holdings-card hotfix
+
+The shared app/HTML card header pairs the rank badge with a padded right-aligned
+return and a decorative inline SVG trend icon. Gains use mint; losses use soft
+red. Neutral/unavailable states have no directional icon. The parent retains
+its descriptive accessible label, while the SVG is hidden from assistive tools.
+The PDF uses equivalent vector strokes on the rank row, ten-point right padding,
+and a compact relative-size bar matching the existing card convention. Holding
+names sit beneath the header; long PDF names are abbreviated and remain complete
+in HTML and tables. Individual PDF labels no longer repeat Open; section text
+explains unrealized return. One-page geometry, financial values and tables stay
+unchanged. No external assets or new financial calculations are introduced.

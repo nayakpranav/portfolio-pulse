@@ -67,8 +67,8 @@ def test_canonical_positive_negative_and_exact_zero_badges(kind,state,canonical)
     html=holding_cards(model['snapshot']['top_holdings'])
     assert 'return-'+state in html
     assert signed_percent(r['return_pct']) in html
-    if state=='positive':assert '↑ +' in html
-    if state=='negative':assert '↓ -' in html
+    if state=='positive':assert 'holding-trend' in html and '>+' in html
+    if state=='negative':assert 'holding-trend' in html and '>-' in html
     if state=='neutral':assert r['return_pct']==0 and '0.00%' in html and 'Unavailable' not in html
 
 
@@ -155,7 +155,7 @@ def test_shared_tables_order_identifiers_rank_and_exact_financial_formats(canoni
     assert all('<th class="number">'+c+'</th>' in html for c in FINANCIAL_COLUMNS[1:])
     for r in top:
         assert f'€{r["basis"]:,.2f}' in html and signed_percent(r['return_pct']) in html
-    assert '↑ +' in html and '↓ -' in html and 'not lifetime' in html
+    assert 'holding-trend' in html and '>+' in html and '>-' in html and 'not lifetime' in html
 
 
 def test_long_names_huge_returns_and_html_injection_remain_text(canonical):
@@ -197,3 +197,19 @@ def test_localized_ambiguous_event_preserves_other_canonical_holding_returns():
     assert 'partial' in model['scope_label'] and model['holdings']
     assert all(r['isin']!='ZZ0000000001' and r['return_pct'] is not None for r in model['holdings'])
     assert model['full_totals']['value'] is None and model['full_totals']['profit'] is None
+
+
+@pytest.mark.parametrize('ret,state,directional',[(12.34,'positive',True),(-12.34,'negative',True),(0,'neutral',False),(None,'unavailable',False)])
+def test_reference_card_vector_icon_states_and_accessibility(canonical,ret,state,directional):
+    model=prepare(canonical['demo'],DAY);model['snapshot']['top_holdings'][0]['return_pct']=ret
+    row=model['snapshot']['top_holdings'][0];before=deepcopy(row)
+    badge=holding_cards([row])
+    assert 'return-'+state in badge and '↑' not in badge and '↓' not in badge
+    assert ('class="holding-trend"' in badge)==directional
+    if directional:assert 'aria-hidden="true" focusable="false"' in badge and 'stroke="currentColor"' in badge
+    assert 'aria-label="Unrealized return:' in badge and 'remaining acquisition basis' in badge
+    assert signed_percent(ret) in badge and row==before
+    text=PdfReader(BytesIO(summary_pdf(model))).pages[0].extract_text()
+    assert 'Open +' not in text and 'Open -' not in text and 'Open N/A' not in text
+    assert (signed_percent(ret) if ret is not None else 'N/A') in text
+    assert row==before

@@ -80,7 +80,7 @@ def test_html_offline_allowlist_and_private_state_exclusion(report_results):
     # Public security ISINs are intended operational details in All Holdings only.
     assert '<th>ISIN</th>' in html
     parsed=Elements();parsed.feed(html)
-    assert sum(tag=='svg' for tag,_ in parsed.elements)==2
+    assert sum(tag=='svg' and 'chart' in a.get('class','').split() for tag,a in parsed.elements)==2
     assert len([a for tag,a in parsed.elements if 'data-period' in a])==5
     for tag,attrs in parsed.elements:
         assert tag not in {'iframe','object','embed','link','img','form','base'}
@@ -236,7 +236,7 @@ def test_hot_deployment_refreshes_presentation_helpers_and_paired_reports(report
     assert charts.benchmark_alias(model).startswith('Synthetic MSCI World ETF')
     assert 'stale holding presentation' not in app.session_state['html'].decode()
     assert 'width:32px' in app.session_state['html'].decode()
-    assert app.session_state['export_schema']==(7,5)
+    assert app.session_state['export_schema']==(8,6)
     assert len(app.metric)==8 and app.session_state['pdf'].startswith(b'%PDF')
 
 
@@ -253,7 +253,7 @@ def test_composition_shared_prepared_model_scope_and_reports(kind,report_results
         assert c['stock_pct']+c['fund_pct']+c['unclassified_pct']==pytest.approx(100)
     html=html_report(models[0]).decode()
     assert 'Portfolio Composition' in html and 'data-composition="active"' in html
-    assert html.count('<svg')==2 and raw==before
+    assert html.count('<svg')-html.count('<svg class="holding-trend"')==2 and raw==before
 
 
 @pytest.mark.parametrize('large',[False,True])

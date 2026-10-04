@@ -431,3 +431,34 @@ normal-size PDF are inspected. Seven unpriced derivatives correctly leave full
 portfolio value and profit unavailable. Closing, reopening, uploading the same
 export again and clearing pass; private evidence persists and runtime folders
 are cleaned. The installed files match the generic release manifest.
+
+
+## FolioLens Personal v1.0.9
+
+The complete suite passes 236 tests with no failures or skips. Four new
+parameterized checks verify signed SVG icon states, neutral/unavailable absence
+of directional icons, decorative accessibility attributes, intact parent labels
+and PDF labels without Open. Existing assertions count two chart SVGs separately
+from decorative icons; financial/table/model immutability checks remain intact.
+
+Normal and stress one-page PDFs are rendered at ordinary viewing size and
+inspected against the supplied visual references. Return text is 8 pt, aligned
+opposite rankings with top/right padding. Mint positive and soft-red negative
+vector arrows match the inline HTML zigzags. Names sit below the header; very
+long PDF names are abbreviated, with full names retained in HTML and tables.
+Oversized PDF indicators are omitted rather than clipped. Neutral/unavailable
+indicators have no direction. All other page sections and monthly keys remain
+unchanged. Offline HTML passes desktop/tablet/mobile, hostile-text escaping,
+CSP, five TWR controls and no external requests. Financial models and tables
+match identical captured inputs, and canonical files remain unchanged.
+
+The installed v1.0.9 is launched through the existing shortcut and visually
+checked on desktop/mobile using the synthetic demo, including positive and
+negative icons, header alignment, downloads and matching eight metric figures.
+Both private reports are regenerated from unchanged captured real inputs.
+Fresh live Yahoo acceptance is not repeated for this presentation-only hotfix.
+Restart, exact-export private-event recognition without repeated confirmation,
+session clearing and graceful cleanup pass. The encrypted private profile is
+preserved. Generic package CRC, SHA-256, 4,228 file hashes, private-marker scans
+and a frozen runtime without Python on PATH pass. Public uploads remain disabled
+and Holy Grail is untouched.
