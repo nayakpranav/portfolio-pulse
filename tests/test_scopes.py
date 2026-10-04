@@ -131,7 +131,7 @@ def test_personal_profile_fallback_requires_personal_mode(tmp_path,monkeypatch):
     from pulse.private_config import personal_defaults,export_digest
     monkeypatch.delenv('FOLIOLENS_CONFIG_DIRECTORY',raising=False)
     monkeypatch.delenv('IS_STREAMLIT_CLOUD',raising=False);monkeypatch.delenv('STREAMLIT_SHARING_MODE',raising=False)
-    monkeypatch.setenv('LOCALAPPDATA',str(tmp_path));monkeypatch.setenv('FOLIOLENS_MODE','personal')
+    monkeypatch.setenv('USERPROFILE',str(tmp_path));monkeypatch.setenv('FOLIOLENS_MODE','personal')
     data,_=fixture('stocks');profile=tmp_path/'FolioLensPersonal/exports';profile.mkdir(parents=True)
     config={'export_sha256':export_digest(data),'worthless_confirmations':[]}
     (profile/(export_digest(data)+'.json')).write_text(json.dumps(config))

@@ -206,3 +206,47 @@ Actual private preset/custom PDFs rendered as one-page A4 landscape with explici
 selected/full scopes and passed text bounds and visual inspection. Final safe-suite,
 Windows packaging, installed workflow and public deployment results are recorded
 in the release handoff. Private acceptance artifacts remain outside Git and CI.
+
+## Personal installation and general corporate-action repair
+
+The v1.0.2 checks did not establish that the Explorer-launched application read
+the same physical private profile as the packaged engineering environment.
+Windows MSIX AppData virtualization redirected provisioned files into the setup
+tool's package cache. Filesystem-handle inspection identified that physical
+location; the actual running installed server showed no loaded verified evidence
+and requested confirmation for the unchanged current export. Earlier acceptance
+claims therefore did not prove the owner's installed workflow.
+
+The launcher now uses the non-virtualized Windows user directory, independently
+reports its version/profile readiness from inside the frozen executable, and the
+existing shortcut points to that installation. Private exact-event records use
+per-user DPAPI protection and atomic recovery. Persistent identity includes the
+broker transaction, canonical event fields and complete prior security-activity
+fingerprint; a CSV digest binds only transient inputs. Numeric fingerprints are
+stable across dataframe dtype changes. No user-specific registry is bundled.
+
+Supported canonical corporate actions run automatically. The local graphical
+review remembers successful exceptional confirmations after canonical FIFO
+validation; invalid cash/identity/quantity/prior history still blocks them.
+Concurrent preflights use function-local registry bindings without mutating a
+global registry. Alternate profiles cannot inherit the owner's legacy evidence.
+Hosted confirmations remain session-only. Corrupt protected evidence must recover
+from a valid private backup or fail closed.
+
+Localized accounting failures can supply a separately labelled unaffected-security
+projection using unchanged canonical functions. Complete histories of affected
+lineages are excluded, with matching scoped benchmark cash flows. Complete-export
+accounting and audits remain intact; full capital/recovery and totals retain their
+blockers. Duplicate, unlocalized or missing core inputs do not receive that escape.
+
+Independent fabricated portfolios cover ordinary stocks/funds, dividends/interest,
+reinvestment, promotional funding/SaveBack, realized loss and derivative settlement,
+forward/reverse splits, exceptional-event persistence, newer exports, altered
+evidence, isolated profiles and concurrent preflights. The retained nine synthetic
+reference scenarios pass. Controlled real-export comparison matches all 32 fields
+exactly, including the preserved 30-field contract, eight metrics, holdings, income
+and diagnostics. All 126 retained canonical definitions are unchanged. Installed
+live preset/custom browser tests produced eight valid stock/fund cards, three
+charts, five TWR periods, private PDF downloads and cleared sessions. Full value
+and lifetime profit remain unavailable for seven unquoted derivatives. Final
+restart, package, safe-suite and CI results are recorded in the release handoff.

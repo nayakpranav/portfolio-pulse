@@ -39,3 +39,11 @@ Private established event evidence loads automatically from the Windows personal
 profile, including personal launches without an explicit directory override.
 It is never distributed. Canonical identity, quantity, zero-consideration and
 supported-prior-position safeguards still apply.
+
+For localized security-specific accounting failures, a separate canonical
+**Unaffected stocks & funds (partial)** projection retains all transactions of
+every unaffected instrument and excludes the complete affected lineage. Its
+holdings, MWR, TWR and matched benchmark are explicitly scoped to those securities.
+The full export/audit is retained unchanged. Capital/recovery and complete
+portfolio totals remain blocked. Nonlocalizable or duplicate/date/quantity
+failures stay fail-closed. See [supported corporate actions](CORPORATE_ACTIONS.md).

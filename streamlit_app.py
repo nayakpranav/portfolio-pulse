@@ -10,9 +10,10 @@ from pulse.mode import uploads_enabled, mode
 # A hot deployment can rerun this file before refreshing imported helper modules.
 import importlib
 import pulse.private_config as _private_config
-if not hasattr(_private_config,'personal_defaults') or getattr(_private_config,'CONFIG_SCHEMA_VERSION',0)!=2:
+if not hasattr(_private_config,'personal_defaults') or getattr(_private_config,'CONFIG_SCHEMA_VERSION',0)!=3:
     importlib.reload(_private_config)
 from pulse.private_config import event_candidates,export_digest,load_private_config,personal_defaults
+from pulse.event_review import review as event_review,remember
 from pulse.runner import validate_upload
 import json
 import altair as alt
@@ -46,6 +47,7 @@ with st.sidebar:
     with brand:
         st.markdown('**FolioLens**')
         st.caption('Your investments, in focus.')
+    if mode()=='personal':st.caption('Personal · '+os.environ.get('FOLIOLENS_VERSION','development'))
     upload_epoch = st.session_state.get('upload_epoch',0)
     uploaded = None
     if upload_enabled:
@@ -89,6 +91,7 @@ with st.sidebar:
         with st.expander('Processing and privacy'):
             st.write('Your CSV is transmitted to this Streamlit backend to calculate results. Public security identifiers/names and tickers may be requested from Yahoo Finance and OpenFIGI, which can reveal your holdings to them. Reports contain private financial information.')
             st.write('Worker files and caches are deleted after processing. Results and PDF downloads stay in this session until cleared or the session expires; no permanent portfolio storage or private shared cache is used. Clear removes the selected upload and analysis/download state. Use an authenticated backend for hosted personal analysis.')
+            if mode()=='personal':st.write('Confirmed exceptional-event evidence is encrypted in your local Windows profile and retained for future exports. Clear session results keeps this evidence; it does not retain your full export or report.')
     if uploaded is not None:
         content=uploaded.getvalue();digest=export_digest(content)
         if st.session_state.get('input_digest')!=digest:
@@ -100,7 +103,7 @@ with st.sidebar:
         try:
             validate_upload(content)
             local_defaults=load_private_config(os.environ['FOLIOLENS_PRIVATE_CONFIG'],content) if os.environ.get('FOLIOLENS_PRIVATE_CONFIG') else personal_defaults(content)
-            candidates=event_candidates(content)
+            candidates=event_review(content,local_defaults)
             confirmations=[]
             prior=st.session_state.get('model',{}).get('raw',{})
             derivatives=prior.get('active_derivatives',[]) if not prior.get('synthetic') else []
@@ -108,13 +111,17 @@ with st.sidebar:
                 with st.expander('Private event / valuation review'):
                     for candidate in candidates:
                         st.text(f"Row {candidate['source_row']} · {candidate['date']}\n{candidate['name']} · {candidate['isin']}\nQuantity removed: {abs(candidate['quantity']):g}")
-                        established=any(item.get('isin')==candidate['isin'] and item.get('security_name')==candidate['name'] and float(item.get('quantity',0))==candidate['quantity'] for item in local_defaults.get('known_events',[]))
+                        established=candidate['verified']
                         if established:
                             st.caption('Previously verified private event evidence is loaded automatically. Canonical identity, zero-consideration and full-position checks still apply.')
                             continue
-                        if st.checkbox('I confirm a full-position worthless write-off with no proceeds.',value=candidate['source_row'] in local_defaults.get('worthless_confirmations',[]),key=f"event_{digest}_{candidate['source_row']}"):
+                        st.caption('This delivery has no established economic classification. A transfer, exchange or custody removal is not automatically a worthless loss.')
+                        if not candidate['eligible']:
+                            st.warning('Worthless-loss confirmation is unavailable: '+candidate['reason'].replace('_',' ').lower()+'. Provide complete broker evidence for this event; it remains under review.')
+                            continue
+                        if st.checkbox('The broker evidence confirms a full-position worthless write-off with no proceeds. Remember this exact event privately.',value=candidate['source_row'] in local_defaults.get('worthless_confirmations',[]),key=f"event_{digest}_{candidate['source_row']}"):
                             confirmations.append(candidate['source_row'])
-                    st.caption('Confirmation does not waive canonical cash, full-position or prior-activity checks. Reanalyze after reviewing.')
+                    st.caption('Canonical identity, cash, full-position and prior-activity checks apply. Successful local confirmations are remembered for the same transaction and prior history in future exports; hosted confirmations stay in this session.')
                     for derivative in derivatives:
                         st.text(f"{derivative['security_name']} · {derivative['isin']} · quantity {derivative['current_quantity']:g}")
                     raw_quotes=st.text_area('Dated manual derivative EUR prices (JSON)',value=json.dumps(local_defaults.get('derivative_quotes',{})) if local_defaults.get('derivative_quotes') else '',key='manual_quotes',placeholder='{"ISIN": {"price_eur": 1.25, "date": "YYYY-MM-DD", "source": "Broker bid"}}') if derivatives else ''
@@ -123,7 +130,7 @@ with st.sidebar:
             if len(raw_quotes.encode('utf-8'))>65536:raise ValueError('Private valuation input exceeds limit')
             session_config={'export_sha256':digest,'worthless_confirmations':confirmations,'known_events':local_defaults.get('known_events',[]),'derivative_quotes':json.loads(raw_quotes) if raw_quotes else {}}
         except (AnalysisError,ValueError,TypeError,OSError):
-            st.error('Review the CSV or private valuation JSON before analyzing. No private input is logged.')
+            st.error('The CSV or private profile could not validate. Protected evidence recovery was attempted; no event was approved automatically. Restore the private profile if needed, or review the CSV and optional valuations. No private input is logged.')
             analyze=False
     st.caption('Independent, unofficial project. Not affiliated with Trade Republic. Analytical information, without buy/sell recommendations.')
 
@@ -138,6 +145,10 @@ if demo or analyze or start_demo:
     try:
         with st.spinner('Reconstructing investments, income and matched performance…'):
             result = run_analysis(data,benchmark=benchmark,prices=prices,private_config=session_config if analyze else None)
+            if analyze:
+                try:remember(data,session_config,result)
+                except (OSError,ValueError,TypeError):
+                    st.warning('The analysis finished, but verified evidence could not be saved privately. This event may need review after restarting; no private paths or data are logged.')
             model = prepare(result,report_date=datetime.now(ZoneInfo('Europe/Berlin')).date())
             pdf = summary_pdf(model)
             st.session_state['model'] = model;st.session_state['pdf'] = pdf
@@ -170,6 +181,9 @@ if upload_enabled:
         model=prepare(model['raw'],report_date=model['snapshot']['report_date'],analysis_scope=scope_key)
         st.session_state['model']=model;st.session_state['pdf']=summary_pdf(model)
 st.caption(f"Analysis scope: {model['scope_label']}. Returns, benchmark and holdings always cover stocks/funds. Capital committed and recovery cover the full investment ecosystem.")
+if model.get('excluded_securities'):
+    st.warning('Partial analysis: entire histories of securities requiring review are excluded from the displayed stock/fund metrics, chart and matched benchmark. Complete portfolio figures remain unavailable.')
+    for excluded in model['excluded_securities']:st.text('Requires review: '+excluded['name']+' · '+excluded['isin'])
 if any(v is None for v in model['full_totals'].values()):
     if model['dependencies']['ecosystem_accounting'] and model['dependencies']['missing_derivative']:
         st.warning('Full portfolio value and lifetime profit are unavailable: current derivative quotations are missing. Independently valid stock/fund results remain available.')
@@ -190,6 +204,11 @@ with st.expander('Data health and coverage'):
     if model['issues']:
         for issue in model['issues']:st.text('• '+issue)
     else:st.write('No blocking issues in the tracked analytical scope.')
+    for transaction in model['raw'].get('review_transactions',[]):
+        st.text(f"Review row {transaction['source_row']} · {transaction['date']} · {transaction['type']}\n{transaction['name']} · {transaction['isin']} · quantity {transaction['quantity']}\n{transaction['reason']}")
+    for action in model['raw'].get('corporate_action_audit',[]):
+        if action.get('validation_status')!='PASS':
+            st.text(f"Corporate-action review · {action.get('corporate_action_type','')} · {action.get('old_name','')}\n{action.get('warning_error','Incomplete action evidence; FIFO mutation was rejected.')}")
     st.caption('Tracked lifetime results may include derivatives and income. Historical returns and benchmark comparison cover stocks/funds, excluding brokerage cash. Derivatives require a verified quote or explicit dated manual valuation; missing valuations block dependent totals.')
     if model['dependencies']['missing_stock']:st.warning('Holdings rankings cover only valued stocks/funds; unpriced stock/fund positions are omitted. See all current holdings below.')
 
@@ -203,7 +222,7 @@ for offset in (0,4):
                 st.caption(metric.status.replace('_',' ').capitalize() if metric.status!='DISABLED' else 'Comparison disabled')
 
 st.markdown('### Portfolio versus Benchmark')
-st.caption('Stock/fund wealth · EUR · cash-flow-matched benchmark · excludes cash and derivatives')
+st.caption(model.get('returns_scope_label','Stocks & funds')+' wealth · EUR · cash-flow-matched benchmark · excludes cash and derivatives')
 nav = model['nav']
 if not nav.empty:
     columns = {'stockfund_value_eur':'Actual stock/fund wealth'}

@@ -114,6 +114,18 @@ def write_results(ns):
     result['fx_observations']=ns.get('_foliolens_fx',{})
     result['active_derivatives']=serialize(ns.get('active_derivatives',pd.DataFrame()))
     result['worthless_candidates']=serialize(ns.get('worthless_derecognition_diagnostics',pd.DataFrame()))
+    from pulse.partial import projection
+    result['unaffected_scope']=serialize(projection(ns))
+    review_rows=[]
+    frame=ns['df']
+    for _,rule in ns['transaction_support_matrix'].iterrows():
+        if not rule['blocking']:continue
+        matching=frame[frame['type_norm'].eq(rule['type']) & frame['category'].eq(rule['category']) & frame['asset_class_clean'].eq(rule['asset_class'])]
+        for _,row in matching.iterrows():
+            review_rows.append(dict(source_row=int(row['source_row']),date=str(row['event_date'].date()),
+                name=str(row['security_name']),isin=str(row['isin']),type=str(row['type_norm']),
+                quantity=serialize(row['shares']),reason=str(rule['notes'])))
+    result['review_transactions']=review_rows
     if os.environ.get('FOLIOLENS_CAPTURE')=='1':
         result['market_capture']={'calls':ns.get('_foliolens_capture',{}),'benchmark':ns.get('_foliolens_benchmark',{})}
     Path(os.environ['PULSE_RESULT_PATH']).write_text(json.dumps(result,allow_nan=False),encoding='utf-8')

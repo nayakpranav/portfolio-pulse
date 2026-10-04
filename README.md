@@ -24,6 +24,10 @@ remain visible; full-portfolio totals remain incomplete. Capital/recovery retain
 their full-ecosystem scope. [Metric availability](docs/ANALYSIS_SCOPES.md).
 Owner-only website uploads remain independently gated; see the
 [hosting assessment and remaining prerequisites](docs/OWNER_HOSTING_ASSESSMENT.md).
+Supported transactions and corporate actions are automatic. Confirmed exceptional
+events are remembered privately across newer exports using exact transaction and
+prior-activity evidence, rather than the whole CSV digest.
+See [corporate-action coverage and safeguards](docs/CORPORATE_ACTIONS.md).
 
 Use Python 3.12. Create a virtual environment, install the pinned dependencies,
 then start the application:
@@ -107,7 +111,7 @@ reinvested dividends once and is not necessarily cash received in the account.
 
 Yahoo-powered identification, current/historical quotes, EUR conversion and custom
 benchmark metadata are integrated with the retained canonical engine. Exact-export
-private event confirmations and dated manual derivative valuations complete the
+temporary confirmations and dated manual derivative valuations complete the
 personal workflow without editing legitimate transaction rows. Price-only indices
 are identified and warned; unavailable comparisons never substitute another ticker.
 

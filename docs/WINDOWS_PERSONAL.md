@@ -16,6 +16,23 @@ profile and loaded automatically. Exact event identity, quantity, consideration
 and prior-position checks still run in the V6.7.8 matcher for every export.
 Changed or unrelated transactions are never automatically reclassified.
 
+The portable launcher uses `%USERPROFILE%\FolioLensPersonal` for its private
+profile, avoiding AppData redirection by packaged setup tools. Verified event
+records are encrypted for the Windows user with DPAPI and have an atomic recovery
+copy. Application updates do not replace these records. The launcher and sidebar
+show the release version. No private event evidence is shipped in the ZIP.
+
+Ordinary supported transactions need no confirmation. A genuinely ambiguous
+delivery appears in **Private event / valuation review**, with its instrument,
+date and quantity. Confirm a worthless write-off only with broker evidence;
+transfers and exchanges are different events. Successful local confirmation is
+remembered automatically for the exact transaction and complete prior security
+activity. Later additions to an export do not invalidate that evidence. Changed
+identity, consideration, quantities or prior history still require review.
+Each Windows user has a separate encrypted store, and exact event plus prior
+history binding prevents one portfolio's evidence applying to another. Hosted
+confirmations remain session-only; no shared hosted event registry is created.
+
 Missing current derivative quotes do not block independently valid stock/fund
 returns, capital/recovery and recognized income. Tracked value and lifetime
 profit remain unavailable when required valuations are missing. Dated manual
@@ -28,6 +45,13 @@ portfolio** to see its dependent totals marked unavailable. Holdings, history an
 the benchmark remain available when their own accounting/data validates. Specific
 accounting blockers are displayed separately from valuation warnings.
 See [scope definitions](ANALYSIS_SCOPES.md).
+
+When a localized unresolved event affects only some instruments, an explicitly
+labelled **Unaffected stocks & funds (partial)** scope can show the other security
+histories and their matched performance. It excludes the affected instrument's
+entire lineage and lists those exclusions. Full capital/recovery and portfolio
+totals retain their accounting blockers. Unlocalized errors, duplicates and
+missing accounting inputs remain fail-closed.
 
 The application binds only to `127.0.0.1`, makes bounded Yahoo/OpenFIGI requests,
 and retains the existing input, worker, session and PDF security controls.

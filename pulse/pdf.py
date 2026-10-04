@@ -50,7 +50,7 @@ def summary_pdf(model):
     # Main matched-wealth panel, retaining gaps rather than drawing through missing values.
     px,py,pw,ph=28,199,478,170
     _panel(c,px,py,pw,ph)
-    _label(c,'STOCK/FUND WEALTH VS MATCHED BENCHMARK',px+12,py+ph-20,9,WHITE,'Helvetica-Bold')
+    _label(c,'UNAFFECTED STOCK/FUND WEALTH (PARTIAL)' if model.get('excluded_securities') else 'STOCK/FUND WEALTH VS MATCHED BENCHMARK',px+12,py+ph-20,9,WHITE,'Helvetica-Bold')
     estimated=model['raw']['historical_metrics'].get('historical_analytics_status')=='OK_WITH_LOW_CONFIDENCE_FALLBACK'
     _label(c,'Cash and derivatives excluded | EUR'+(' | History includes price estimates' if estimated else ''),px+12,py+ph-35,7,MUTED)
     nav=model['nav']
@@ -124,6 +124,8 @@ def summary_pdf(model):
     if model['issues']:
         dependencies=model['dependencies']
         primary=[blocker_message(check) for check in sorted(dependencies['accounting_checks'],key=lambda check:check=='unknown_transaction_rows')]
+        if model.get('excluded_securities'):
+            primary.insert(0,'Partial scope: '+str(len(model['excluded_securities']))+' affected security lineage(s) excluded in full; complete-portfolio results remain unavailable.')
         if dependencies['unexplained_accounting']:primary.append('Unclassified accounting blocker: dependent figures remain unavailable.')
         if not primary:primary=[issue for issue in model['issues'] if 'derivative valuations:' not in issue]
         _label(c,_truncate('Data health: '+ascii_text(primary[0] if primary else 'Review required'),w-58,6.5),29,73,6.5,AMBER)

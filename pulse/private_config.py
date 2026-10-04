@@ -1,4 +1,4 @@
-"""Private export-bound confirmations; no event registry is distributed."""
+"""Exact-event personal evidence; transient inputs remain export-bound."""
 import csv
 import hashlib
 from io import StringIO
@@ -9,7 +9,7 @@ from datetime import date
 from pulse import core
 from portfolio_core import canonical_column_mapping
 
-CONFIG_SCHEMA_VERSION = 2
+CONFIG_SCHEMA_VERSION = 3
 
 def export_digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -81,16 +81,30 @@ def personal_defaults(data):
     directory=os.environ.get('FOLIOLENS_CONFIG_DIRECTORY')
     if not directory:
         from pulse.mode import mode, uploads_enabled
-        if mode()=='personal' and uploads_enabled() and os.environ.get('LOCALAPPDATA'):
-            directory=str(Path(os.environ['LOCALAPPDATA'])/'FolioLensPersonal')
+        if mode()=='personal' and uploads_enabled():
+            from pulse.profile import profile_root
+            directory=str(profile_root())
     if not directory:return {}
     root=Path(directory)
     exact=root/'exports'/(export_digest(data)+'.json')
     config=load_private_config(exact,data) if exact.is_file() else {'export_sha256':export_digest(data)}
     registry=root/'verified-events.json'
-    if registry.is_file():
+    # Migrate an existing personal installation only within this Windows user's
+    # default profile. Explicit test/alternate profiles never inherit it.
+    from pulse.profile import profile_root
+    legacy_belongs_to_user=bool(os.environ.get('LOCALAPPDATA')) and Path(os.environ['LOCALAPPDATA']).resolve().is_relative_to(profile_root().parent.resolve())
+    if not registry.is_file() and not (root/'verified-events.dat').exists() and root==profile_root() and legacy_belongs_to_user:
+        registry=Path(os.environ['LOCALAPPDATA'])/'FolioLensPersonal/verified-events.json'
+    if registry.is_file() and not (root/'verified-events.dat').exists():
         if registry.stat().st_size>65536:raise ValueError('Private registry exceeds limit')
         config['known_events']=json.loads(registry.read_text(encoding='utf-8'))
+    from pulse.profile import read_records
+    from pulse.event_review import applicable_specs, normalized
+    from dataclasses import asdict
+    records=read_records(root)
+    if records:
+        config['known_events']=list({item['transaction_id_sha256']:item for item in
+            config.get('known_events',[])+[asdict(s) for s in applicable_specs(normalized(data),records)]}.values())
     return validate_private_config(config,data)
 
 def install_private_events(ns, config):
@@ -106,16 +120,10 @@ def install_private_events(ns, config):
             if len(rows)!=1:
                 continue
             row=rows.iloc[0]
-            specs.append(security_events.KnownWorthlessDerecognition(
-                event_id=f'SESSION_CONFIRMED_ROW_{index}',
-                transaction_id_sha256=hashlib.sha256(str(row.get('transaction_id','')).encode()).hexdigest(),
-                event_date=str(row['event_date'].date()), isin=str(row['isin']), security_name=str(row['security_name']),
-                category=str(row['category']).upper(), asset_class=str(row['asset_class_clean']).upper(),
-                broker_type=str(row['type_norm']), quantity=float(row['shares']),description=str(row['description_clean'])))
-        saved=security_events.KNOWN_WORTHLESS_DERECOGNITIONS
-        try:
-            security_events.KNOWN_WORTHLESS_DERECOGNITIONS=tuple(specs)
-            return original(frame)  # All canonical cash/full-position/prior-activity guards still apply.
-        finally:
-            security_events.KNOWN_WORTHLESS_DERECOGNITIONS=saved
+            from pulse.event_review import event_spec
+            try:specs.append(event_spec(row))
+            except ValueError:continue  # Missing exact identity stays unresolved.
+        from types import FunctionType
+        namespace=dict(original.__globals__,KNOWN_WORTHLESS_DERECOGNITIONS=tuple(specs))
+        return FunctionType(original.__code__,namespace)(frame)
     ns['match_known_worthless_derecognitions']=match

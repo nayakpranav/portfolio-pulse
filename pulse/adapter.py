@@ -33,13 +33,26 @@ def number(value):
 
 def prepare(result, report_date=None, analysis_scope=None):
     report_date = report_date or date.today()
+    complete_result=result
+    partial=result.get('unaffected_scope')
+    # Preserve the full result for auditing and scope toggling. Only explicitly
+    # localized accounting failures may supply a separate canonical projection.
+    if partial:
+        result=dict(result,**{k:v for k,v in partial.items() if k not in {'excluded','scope_dividends'}})
+        projection_result=dict(result,accounting_status='COMPLETE',pre_diagnostics=[])
+        projection_result['dividends']=partial['scope_dividends']
+        projected_dependencies=availability(projection_result)
     life, advanced, historical = (result[k] for k in ('lifetime_metrics','advanced_metrics','historical_metrics'))
     benchmark_label = result.get('benchmark_name', 'Selected benchmark')
     dependencies = availability(result)
+    if partial:
+        dependencies.update({k:projected_dependencies[k] for k in ('stock_accounting','stock_valued','stock_value','stock_profit','stock_profit_status','missing_stock')})
+        dependencies['ecosystem_accounting']=False
+        dependencies['full_valued']=False
     blocked = not dependencies['ecosystem_accounting']
     stock_blocked = not dependencies['stock_accounting']
     if analysis_scope is None:
-        analysis_scope = 'stocks_funds' if dependencies['missing_derivative'] and not result.get('synthetic') else 'full_portfolio'
+        analysis_scope = 'stocks_funds' if partial or dependencies['missing_derivative'] and not result.get('synthetic') else 'full_portfolio'
     if analysis_scope not in {'stocks_funds','full_portfolio'}:
         raise ValueError('Unsupported analysis scope')
     stock_scope = analysis_scope == 'stocks_funds'
@@ -52,6 +65,9 @@ def prepare(result, report_date=None, analysis_scope=None):
         if result['dividends'] and key in result['dividends'][0] and any(number(r.get(key)) is None for r in result['dividends']):
             income_blocked = True
     dividends_sound = not income_blocked
+    if partial:
+        dividends_sound=all(number(r.get('net_dividend_eur',r.get('net_dividend_income_eur'))) is not None
+            and abs(number(r.get('reconciliation_error',0)) or 0)<=1e-6 for r in partial['scope_dividends'])
     income_blocked |= any(number(r.get('net_interest_eur')) is None for r in result['interest'])
     if income_blocked:
         for key in ('ytd_income','ytd_dividends','ytd_interest'):
@@ -79,6 +95,8 @@ def prepare(result, report_date=None, analysis_scope=None):
     ]
     metrics = []
     for key,label,value,scope,explanation in defs:
+        if partial and (key in {'mwr','benchmark','twr'} or stock_scope and key in {'value','profit'}):
+            scope='Partial · unaffected securities only · '+scope
         valid = not stock_blocked if key in {'mwr','benchmark','twr'} or stock_scope and key in {'value','profit'} else not blocked
         if key == 'income': valid = not income_blocked
         if key in {'capital','recovery'} or key=='profit' and not stock_scope:
@@ -106,6 +124,8 @@ def prepare(result, report_date=None, analysis_scope=None):
         metrics.append(Metric(key,label,value,scope,explanation,'%' if key in {'mwr','benchmark','twr'} else 'EUR',status))
     by_key = {m.key:m for m in metrics}
     issues = [blocker_message(c) for c in dependencies['accounting_checks']]
+    if partial:
+        issues.insert(0,'Partial stock/fund scope: entire affected security histories are excluded: '+', '.join(r['name'] for r in partial['excluded'])+'. Full portfolio totals and full stock/fund performance remain unavailable.')
     if dependencies['unexplained_accounting']:
         issues.append('Accounting is incomplete without a classified cause; dependent results remain blocked.')
     for item in result['pre_diagnostics']:
@@ -177,6 +197,8 @@ def prepare(result, report_date=None, analysis_scope=None):
                 for r in result['holdings'] if r.get('position_status')=='ACTIVE'] if not stock_blocked else []
     return dict(metrics=metrics,by_key=by_key,snapshot=snapshot,nav=nav,issues=list(dict.fromkeys(issues)),
                 health='Review required' if blocked or income_blocked else 'Partial' if issues else 'Complete',
-                insights=insights[:5],periods=periods,raw=result,valuation_missing=missing,
-                analysis_scope=analysis_scope,scope_label='Stocks & funds' if stock_scope else 'Full portfolio',
+                insights=insights[:5],periods=periods,raw=complete_result,valuation_missing=missing,
+                analysis_scope=analysis_scope,scope_label='Unaffected stocks & funds (partial)' if stock_scope and partial else 'Stocks & funds' if stock_scope else 'Full portfolio',
+                excluded_securities=partial['excluded'] if partial else [],
+                returns_scope_label='Unaffected stocks & funds (partial)' if partial else 'Stocks & funds',
                 dependencies=dependencies,full_totals=full_totals,holdings=holdings,model_schema_version=MODEL_SCHEMA_VERSION)

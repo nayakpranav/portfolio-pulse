@@ -55,6 +55,18 @@ download state. Framework connection expiry/orphan-media cleanup controls eventu
 in-memory retention. A deliberately copied PDF or external private config is not
 deleted by clearing the session. Avoid persistent shared volumes for private output.
 
+In the local Windows application, successfully confirmed exceptional-event evidence
+is intentionally retained under `%USERPROFILE%\FolioLensPersonal`, encrypted for
+that Windows user using DPAPI, with an atomic recovery copy. It contains the exact
+event fields and a prior-activity fingerprint, not the whole export or report.
+Clear retains this evidence so the same event need not be confirmed repeatedly.
+Separate OS users cannot decrypt each other's records. Exact transaction and prior
+activity checks distinguish portfolios within that local profile. Hosted reviews
+remain session-only; no shared persistent hosted event registry is created.
+Profile migration is restricted to the same user's legacy directory; alternate
+profiles and tests cannot inherit another profile's evidence. Missing/corrupt
+evidence does not authorize an event; recovery must validate or review remains.
+
 Worker stdout/stderr and provider logging are suppressed. User errors are sanitized;
 raw exception payloads, financial rows, private UUIDs and reports are not logged.
 Only safe diagnostic statuses/counts are used for acceptance summaries. Streamlit
