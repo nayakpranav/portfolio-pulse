@@ -20,7 +20,7 @@ def panel(c,x,y,width,height):
     c.setFillColor(HexColor(COLORS['surface']));c.setStrokeColor(GRID)
     c.setLineWidth(.4);c.roundRect(x,y,width,height,7,fill=1,stroke=1)
 
-PDF_SCHEMA_VERSION = 4
+PDF_SCHEMA_VERSION = 5
 
 def ascii_text(value):
     return str(value).replace('€','EUR ').replace('—','-').replace('–','-').encode('latin-1','replace').decode('latin-1')
@@ -41,6 +41,21 @@ def lines(value,width,size=8):
         current=(current+' '+word).strip()
     if current:result.append(current)
     return result
+
+def monthly_amount(month):
+    from pulse.adapter import number
+    return number(month.get('total')) if month.get('status') in {'complete','partial'} else None
+
+def monthly_label(month):
+    value=monthly_amount(month)
+    return f'{value:,.2f}'+('*' if month.get('status')=='partial' else '') if value is not None else '-'
+
+def income_label_layout(months,width):
+    # Exact two-decimal labels only when all neighboring cells can hold them
+    # at a readable size. Otherwise associate values with full month names.
+    if all(stringWidth(monthly_label(m),'Helvetica',7)<=width/12-2 for m in months):return 'bars',12
+    columns=3 if all(stringWidth(m['label']+' '+monthly_label(m),'Helvetica',7.5)<=width/3-8 for m in months) else 2
+    return 'key',columns
 
 def summary_pdf(model):
     data = model['snapshot']
@@ -122,21 +137,29 @@ def summary_pdf(model):
     panel(c,ix,iy,iw,ih)
     _label(c,f"NET INVESTMENT INCOME | {data['year']}",ix+12,iy+ih-20,9,WHITE,'Helvetica-Bold')
     _label(c,'Recognized net income; outline = partial',ix+12,iy+ih-35,6.8,MUTED)
-    months=data['months'];scale=max([abs(m['total']) for m in months if m['total'] is not None] or [1]) or 1
-    gx,gy,gw,gh=ix+15,iy+42,iw-30,ih-91
-    signed=any(m['total'] is not None and m['total']<0 for m in months)
+    months=data['months'];amounts=[monthly_amount(m) for m in months]
+    scale=max([abs(v) for v in amounts if v is not None] or [1]) or 1
+    gx,gw=ix+15,iw-30
+    mode,columns=income_label_layout(months,gw)
+    signed=any(v is not None and v<0 for v in amounts)
+    gy,gh=(iy+45,50) if mode=='bars' else (iy+70,35) if columns==3 else (iy+86,20)
     baseline=gy+gh/2 if signed else gy
     c.setStrokeColor(GRID);c.setLineWidth(.4);c.line(gx,baseline,gx+gw,baseline)
-    for j,m in enumerate(months):
-        x=gx+j*gw/12; val=m['total']
+    for j,(m,val) in enumerate(zip(months,amounts)):
+        x=gx+j*gw/12
         if val is not None:
             height=abs(val)/scale*gh*(.5 if signed else 1)
             c.setFillColor(BLUE);c.setStrokeColor(AMBER if m['status']=='partial' else BLUE)
             c.rect(x+2,baseline if val>=0 else baseline-height,gw/12-4,max(height,.6),stroke=1,fill=m['status']=='complete')
-        else:
-            _label(c,'-',x+gw/24,gy+4,6,MUTED,align='center')
-        _label(c,m['label'][0],x+gw/24,gy-11,6,MUTED,align='center')
-    _label(c,'Uncovered months: - | Net income only',ix+14,iy+16,6.5,MUTED)
+            if mode=='bars':
+                _label(c,monthly_label(m),x+gw/24,baseline+height+4 if val>=0 else baseline-height-9,7,WHITE,align='center')
+        elif mode=='bars':_label(c,'-',x+gw/24,baseline+4,7,MUTED,align='center')
+        _label(c,m['label'][0],x+gw/24,gy-19 if mode=='bars' else gy-10,6,MUTED,align='center')
+    if mode=='key':
+        for j,m in enumerate(months):
+            row,col=divmod(j,columns);label=m['label']+' '+monthly_label(m)
+            _label(c,label,gx+col*gw/columns,iy+(46 if columns==3 else 66)-row*10,7.5,WHITE if monthly_amount(m) is not None else MUTED)
+    _label(c,'EUR | * partial / outline | - uncovered, not zero',ix+14,iy+3,6.5,MUTED)
     # Compact holdings strip with the canonical valued-stock/fund denominator.
     _label(c,'LARGEST VALUED STOCK/FUND HOLDINGS',28,204,9,WHITE,'Helvetica-Bold')
     _label(c,'Weights use valued stock/fund assets; no constituent look-through.',28,191,8,MUTED)
@@ -172,6 +195,12 @@ def summary_pdf(model):
     _label(c,'METHOD',29,y-2,7,MUTED,'Helvetica-Bold')
     for line in lines(method,w-114):
         _label(c,line,85,y-2,8,MUTED);y-=10
+    comp=model.get('composition',{})
+    if y>=46 and comp.get('top_pct') is not None:
+        detail=f"Composition: {comp['active_count']} active stocks/funds; {comp['valued_count']} reliably valued; top {comp['top_count']} {comp['top_pct']:.1f}%; stocks {comp['stock_pct']:.1f}%, funds {comp['fund_pct']:.1f}%"
+        if comp['unclassified_pct']>0:detail+=f", unclassified {comp['unclassified_pct']:.1f}%"
+        if comp['partial']:detail+=' (unaffected partial scope)'
+        _label(c,_truncate(detail,w-58,8),29,43,8,MUTED)
     _label(c,'Unofficial independent analysis. Not affiliated with Trade Republic. Not a tax certificate or investment recommendation.',29,min(y-4,29),8,MUTED)
     c.showPage();c.save()
     return output.getvalue()

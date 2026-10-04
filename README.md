@@ -133,3 +133,13 @@ Public CSV uploads remain disabled. `FOLIOLENS_MODE=public_demo` is the safe def
 `personal` uses the provided loopback launcher. `owner_hosted` additionally requires
 verified external access controls and provider rights, with explicit operator
 configuration. Configuration flags are not permission grants or authentication.
+
+
+## Portfolio composition
+
+FolioLens Personal v1.0.6 places active stock/fund count, top-five concentration
+and canonical stocks-versus-funds allocation beside investment income. Coverage
+is explicit: unpriced positions count as active but contribute no invented value.
+The existing five holdings cards lead directly into Top 10 and All Holdings.
+Offline HTML shares the prepared composition; the PDF retains its compact layout
+and adds exact monthly income values. See [report definitions](docs/REPORTS.md).

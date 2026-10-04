@@ -71,3 +71,37 @@ and strip arrangements. This preserves larger values and readable names rather
 than compressing holdings into a narrow sidebar. Footer labels distinguish
 insight, health, methodology and the independent-analysis disclaimer. Material
 missing valuations and historical price-estimate qualifications remain visible.
+
+
+## v1.0.6 portfolio composition and monthly income
+
+The dashboard replaces the redundant holdings chart with Portfolio Composition
+beside Investment Income. The two detailed holdings expanders now follow the
+five unchanged ranked cards. HTML presents the same prepared composition between
+income and holdings, without external assets or a second holdings chart.
+
+The active count deduplicates canonical active stock/fund instruments, including
+unpriced positions and excluding closed positions and derivatives. Percentages
+use only nonnegative, finite current values with canonical VALUED diagnostics
+and verified quotes within seven days of the displayed coverage date, matching
+the existing freshness qualification. Synthetic scenarios use their explicit
+historical valuation date. Missing, stale, future-dated or unverified values
+remain in the active count but do not contribute invented values.
+
+Top-five concentration is the sum of the largest up to five reliable values
+divided by all reliable stock/fund values. Fewer than five are labelled Top N.
+The remaining share is complementary. Instrument allocation uses canonical STOCK
+and FUND classifications; uncertain classifications receive an explicit neutral
+share. No security-name guessing, constituent look-through, sector or risk
+analysis is performed. Zero or missing denominators are unavailable. Localized
+accounting blockers retain the established unaffected-securities scope and its
+partial qualification; a blocked position count is unavailable, never zero.
+
+PDF layout and charts are retained. Composition appears only as an additional
+footer observation when space permits, preserving benchmark and health text.
+Monthly income has exact two-decimal EUR labels above bars when readable, or a
+compact full-month value key when labels would collide. Negative and genuine
+zero amounts remain exact. Partial months retain outlines and an asterisk;
+uncovered/unavailable months show a dash, never an invented zero. HTML adds a
+visible exact monthly key while preserving hover values; Streamlit retains its
+exact tooltips to avoid overcrowding its compact responsive chart.

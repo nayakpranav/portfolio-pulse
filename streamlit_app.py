@@ -28,14 +28,15 @@ from pulse.runner import run_analysis,AnalysisError
 from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
-if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=3:importlib.reload(_adapter)
-if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=4:importlib.reload(_pdf)
+if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=4:importlib.reload(_adapter)
+if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=5:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 import pulse.html_report as _html_report
-if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=2:importlib.reload(_html_report)
+if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=3:importlib.reload(_html_report)
 from pulse.html_report import html_report, HTML_SCHEMA_VERSION
 from pulse.reporting import HOLDING_CSS, holding_cards
+from pulse.composition import COMPOSITION_CSS, composition_panel
 
 def store_reports(model):
     # Compute both first; a failure must not leave downloads from different runs.
@@ -275,23 +276,18 @@ with income_col:
     st.altair_chart(chart,use_container_width=True)
     st.caption('Complete = covered month-end. Partial = incomplete coverage. Uncovered months have no value; a covered zero is actual zero income.')
 with holdings_col:
-    st.markdown('### Largest Holdings')
-    st.caption('Top 5 · share of valued stock/fund assets · no look-through')
-    top=pd.DataFrame(snap['top_holdings'][:5])
-    if not top.empty:
-        chart=alt.Chart(top).mark_bar(cornerRadiusEnd=3,color='#42cbea').encode(y=alt.Y('name:N',sort='-x',title=None,axis=alt.Axis(labelLimit=145,labelFontSize=10)),x=alt.X('value:Q',title='EUR'),
-            tooltip=['name:N',alt.Tooltip('value:Q',format=',.2f'),alt.Tooltip('weight_pct:Q',format='.1f')]).properties(height=200)
-        st.altair_chart(chart,use_container_width=True)
-    else:st.info('No supported valued holding ranking available.')
-    with st.expander('See Top 10 holdings'):
-        st.dataframe(pd.DataFrame(snap['top_holdings']).rename(columns={'name':'Holding','value':'Value EUR','weight_pct':'Weight %'}),hide_index=True,use_container_width=True)
-        st.caption('Closed and derecognized positions are excluded. Unpriced holdings are not assigned zero.')
-    with st.expander('All current stock/fund holdings'):
-        st.dataframe(pd.DataFrame(model['holdings']).rename(columns={'name':'Holding','quantity':'Quantity','value':'Value EUR','quote_date':'Quote date','status':'Valuation'}),hide_index=True,use_container_width=True)
+    st.markdown('### Portfolio Composition')
+    st.markdown('<style>'+COMPOSITION_CSS+'</style>'+composition_panel(model['composition']),unsafe_allow_html=True)
 
 st.markdown('### Your Five Largest Holdings')
 st.caption('Valued stocks/funds · no constituent look-through. Thin bars show size relative to the largest holding; percentages show allocation.')
 st.markdown(holding_cards(snap['top_holdings']),unsafe_allow_html=True)
+with st.expander('See Top 10 holdings'):
+    st.dataframe(pd.DataFrame(snap['top_holdings']).rename(columns={'name':'Holding','value':'Value EUR','weight_pct':'Weight %'}),hide_index=True,use_container_width=True)
+    st.caption('Closed and derecognized positions are excluded. Unpriced holdings are not assigned zero.')
+with st.expander('All current stock/fund holdings'):
+    st.dataframe(pd.DataFrame(model['holdings']).rename(columns={'name':'Holding','quantity':'Quantity','value':'Value EUR','quote_date':'Quote date','status':'Valuation'}),hide_index=True,use_container_width=True)
+
 st.markdown('### What Stands Out?')
 for insight in model['insights']:
     # Uploaded security names are data; prevent Markdown links/images from rendering.

@@ -11,9 +11,11 @@ import pandas as pd
 from pulse.adapter import number
 from pulse.charts import wealth_range, benchmark_alias
 from pulse.design import CSS_TOKENS, KPI_CSS
+from pulse.pdf import monthly_amount, monthly_label
+from pulse.composition import COMPOSITION_CSS, composition_panel
 from pulse.reporting import HOLDING_CSS, holding_cards, money
 
-HTML_SCHEMA_VERSION = 2
+HTML_SCHEMA_VERSION = 3
 SCRIPT = '''document.querySelectorAll('[data-period]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-period]').forEach(function(other){other.setAttribute('aria-pressed','false');});button.setAttribute('aria-pressed','true');document.getElementById('period-value').textContent=button.dataset.display;document.getElementById('period-dates').textContent=button.dataset.dates;});});'''
 STYLE = CSS_TOKENS+'''*{box-sizing:border-box}body{margin:0;background:var(--fl-background);color:var(--fl-text);font:16px/1.55 system-ui,sans-serif}main{max-width:1300px;margin:auto;padding:32px}
 h1{font-size:2.5rem;letter-spacing:-1px;margin:0}h2{font-size:1.3125rem;letter-spacing:-.2px;margin:28px 0 12px}h3{font-size:1rem;margin:0 0 8px}p{margin:8px 0}.muted,small{color:var(--fl-muted)}
@@ -26,7 +28,7 @@ button{font:inherit;border:1px solid var(--fl-border);background:var(--fl-backgr
 footer{border-top:1px solid var(--fl-border);margin-top:32px;padding-top:20px;font-size:.875rem;display:grid;grid-template-columns:1fr 1fr;gap:24px}.disclaimer{grid-column:1/-1}.holding-description{font-size:.875rem;color:var(--fl-muted)}
 @media(max-width:900px){main{padding:24px}.income-layout{grid-template-columns:1fr}.income-facts{border-left:0;border-top:1px solid var(--fl-border);padding:16px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:16px}.income-facts .income-note{grid-column:1/-1}}
 @media(max-width:560px){main{padding:16px}header{display:block}.report-meta{text-align:left;margin-top:18px}h1{font-size:2rem}.panel{padding:18px}footer{grid-template-columns:1fr}.income-facts{grid-template-columns:1fr}.period-controls{gap:6px}button{padding:8px 12px}.wealth-chart text{font-size:20px}.wealth-chart .minor-tick{display:none}}
-'''+KPI_CSS+HOLDING_CSS
+'''+KPI_CSS+HOLDING_CSS+COMPOSITION_CSS+'''.monthly-values{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;font-size:.875rem;font-variant-numeric:tabular-nums;margin-top:8px}.monthly-values span{overflow-wrap:anywhere}.monthly-values strong{color:#f6f9fd}@media(max-width:560px){.monthly-values{grid-template-columns:repeat(2,minmax(0,1fr))}}'''
 
 def text(value):
     return escape(str(value),quote=True)
@@ -72,18 +74,19 @@ def wealth_chart(model):
     return '<div class="legend">'+legend+'</div>'+''.join(svg)+'<p class="muted">Wealth (EUR) · padded axis'+(' · axis does not start at zero' if low!=0 else ' · axis starts at zero')+'</p><div class="endpoint-row">'+endpoints+'</div><details class="comparison-details"><summary>Benchmark identity and comparison</summary><p>'+text(model['raw'].get('benchmark_name','No comparison'))+'</p><p>Exact selected instrument · EUR conversion · cash-flow-matched benchmark MWR. '+text(model['by_key']['benchmark'].status.replace('_',' ').capitalize())+'.</p></details>'
 
 def income_chart(months):
-    scale=max([abs(number(m.get('total')) or 0) for m in months] or [1]) or 1
-    signed=any((number(m.get('total')) or 0)<0 for m in months);baseline=130 if signed else 235;gh=100 if signed else 205
+    scale=max([abs(monthly_amount(m) or 0) for m in months] or [1]) or 1
+    signed=any((monthly_amount(m) or 0)<0 for m in months);baseline=130 if signed else 235;gh=100 if signed else 205
     svg=['<svg class="chart" role="img" aria-label="Monthly recognized net investment income, EUR" viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg">',f'<path d="M45,{baseline}H590" stroke="#24415e"/>']
     for i,m in enumerate(months):
-        x=48+i*45;value=number(m.get('total'))
+        x=48+i*45;value=monthly_amount(m)
         if value is not None:
             height=abs(value)/scale*gh;y=baseline-height if value>=0 else baseline
             svg.append(f'<rect x="{x}" y="{y:.3f}" width="29" height="{max(height,.6):.3f}" fill="{"#397df5" if m["status"]=="complete" else "none"}" stroke="{"#f8bc62" if m["status"]=="partial" else "#397df5"}"><title>{text(m["label"]+": "+money(value)+" · "+m["status"])}</title></rect>')
         else:svg.append(svg_text('—',x+14,baseline-8,fill='#91a7bc',font_size=14,text_anchor='middle'))
         svg.append(svg_text(m['label'],x+14,264,fill='#91a7bc',font_size=12,text_anchor='middle'))
     svg.extend([svg_text('EUR · hover bars for amounts',48,290,fill='#91a7bc',font_size=13),'</svg>'])
-    return ''.join(svg)
+    key='<div class="monthly-values" aria-label="Exact monthly income in EUR">'+''.join('<span>'+text(m['label'])+' <strong>'+text(monthly_label(m))+'</strong></span>' for m in months)+'</div><p class="muted">EUR · * partial coverage · —/dash means uncovered, not zero.</p>'
+    return ''.join(svg)+key
 
 def html_report(model):
     """Return session-local UTF-8 bytes, with a new non-personal export token."""
@@ -105,7 +108,7 @@ def html_report(model):
         parts.append('<button type="button" data-period="'+key+'" data-display="'+text(display)+'" data-dates="'+text(dates)+'" aria-pressed="'+('true' if key=='MAX' else 'false')+'">'+key+'</button>')
     maximum=next((r for r in model['periods'] if r['period_key']=='MAX'),None)
     parts.append('</div></div><p id="period-value" class="period-value">'+(f'MAX · {maximum["portfolio_twr_pct"]:.2f}%' if maximum else 'MAX · Unavailable')+'</p><p id="period-dates" class="muted">'+(day(maximum['effective_start_date'])+' to '+day(maximum['end_date']) if maximum else 'Reliable performance unavailable.')+'</p><p class="muted">Period TWR is cumulative and adjusts for cash flows. MWR is annualized; headline TWR is since inception. Cash and derivatives are excluded. Period controls change TWR only; the wealth chart retains its full available history.</p></div></section>')
-    parts.append('<section class="panel"><h2>Investment Income · '+str(snap['year'])+'</h2><p class="muted">Recognized net investment income · dividends + interest</p><div class="income-layout"><div>'+income_chart(snap['months'])+'</div><aside class="income-facts"><p><span class="muted">Net dividends YTD</span><br><span class="income-number">'+money(snap['ytd_dividends'])+'</span></p><p><span class="muted">Net interest YTD</span><br><span class="income-number">'+money(snap['ytd_interest'])+'</span></p><p class="muted income-note">Solid = covered month-end · outline = partial · dash = uncovered, not zero. Reinvested dividend income is recognized once.</p></aside></div></section><h2>Five largest valued stock/fund holdings</h2><p class="holding-description">Weights are shares of valued stock/fund assets, without look-through. Thin bars show size relative to the largest holding; use the percentages for allocation.</p>'+holding_cards(snap['top_holdings']))
+    parts.append('<section class="panel"><h2>Investment Income · '+str(snap['year'])+'</h2><p class="muted">Recognized net investment income · dividends + interest</p><div class="income-layout"><div>'+income_chart(snap['months'])+'</div><aside class="income-facts"><p><span class="muted">Net dividends YTD</span><br><span class="income-number">'+money(snap['ytd_dividends'])+'</span></p><p><span class="muted">Net interest YTD</span><br><span class="income-number">'+money(snap['ytd_interest'])+'</span></p><p class="muted income-note">Solid = covered month-end · outline = partial · dash = uncovered, not zero. Reinvested dividend income is recognized once.</p></aside></div></section><section class="panel"><h2>Portfolio Composition</h2>'+composition_panel(model['composition'])+' </section><h2>Five largest valued stock/fund holdings</h2><p class="holding-description">Weights are shares of valued stock/fund assets, without look-through. Thin bars show size relative to the largest holding; use the percentages for allocation.</p>'+holding_cards(snap['top_holdings']))
     parts.append('<details><summary>All current stock/fund holdings</summary><div class="table-scroll"><table><thead><tr><th>Holding</th><th class="number">Quantity</th><th class="number">Value EUR</th><th>Quote date</th><th>Valuation</th></tr></thead><tbody>')
     for r in model['holdings']:
         qty=number(r.get('quantity'))

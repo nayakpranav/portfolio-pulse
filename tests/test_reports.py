@@ -234,5 +234,40 @@ def test_hot_deployment_refreshes_presentation_helpers_and_paired_reports(report
     assert charts.benchmark_alias(model).startswith('Synthetic MSCI World ETF')
     assert 'stale holding presentation' not in app.session_state['html'].decode()
     assert 'width:32px' in app.session_state['html'].decode()
-    assert app.session_state['export_schema']==(4,2)
+    assert app.session_state['export_schema']==(5,3)
     assert len(app.metric)==8 and app.session_state['pdf'].startswith(b'%PDF')
+
+
+@pytest.mark.parametrize('kind',['stocks','etf_only','derivatives','open_derivatives','missing_price'])
+def test_composition_shared_prepared_model_scope_and_reports(kind,report_results):
+    raw=deepcopy(report_results[kind]);before=deepcopy(raw)
+    models=[prepare(raw,date(2026,10,4),scope) for scope in ('stocks_funds','full_portfolio')]
+    assert models[0]['composition']==models[1]['composition']
+    c=models[0]['composition']
+    assert c['active_count'] is not None
+    if kind=='missing_price':assert c['valued_count']<c['active_count']
+    if c['top_pct'] is not None:
+        assert c['top_pct']+c['remaining_pct']==pytest.approx(100)
+        assert c['stock_pct']+c['fund_pct']+c['unclassified_pct']==pytest.approx(100)
+    html=html_report(models[0]).decode()
+    assert 'Portfolio Composition' in html and 'data-composition="active"' in html
+    assert html.count('<svg')==2 and raw==before
+
+
+@pytest.mark.parametrize('large',[False,True])
+def test_exact_monthly_pdf_and_html_values_with_coverage(report_results,large):
+    from pulse.pdf import monthly_label
+    model=prepare(deepcopy(report_results['demo']),date(2026,10,4))
+    months=model['snapshot']['months']
+    cases=[(1234567890123.45 if large else 1.23,'complete'),(-12.34,'complete'),(0,'complete'),(45.67,'partial'),(None,'uncovered'),(0,'unavailable')]
+    for month,(value,status) in zip(months,cases):month.update(total=value,status=status)
+    before=deepcopy(months)
+    data=summary_pdf(model);text=PdfReader(BytesIO(data)).pages[0].extract_text()
+    html=html_report(model).decode()
+    for month in months:
+        assert monthly_label(month) in text and monthly_label(month) in html
+    assert 'uncovered, not zero' in text and '45.67*' in text
+    page=pymupdf.open(stream=data,filetype='pdf')[0]
+    spans=[s for b in page.get_text('dict')['blocks'] for line in b.get('lines',[]) for s in line['spans']]
+    assert all(20<=s['bbox'][0] and s['bbox'][2]<=page.rect.width-20 for s in spans)
+    assert months==before

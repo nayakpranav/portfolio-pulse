@@ -349,3 +349,39 @@ helpers with obsolete versions. The app refreshes presentation helpers before
 importing new names and regenerates both reports together. This fixes the
 observed Streamlit Cloud cached-helper ImportError without changing accounting
 or restarting a user's prepared analysis.
+
+
+## FolioLens Personal v1.0.6
+
+The full repository-safe suite passes **196 tests**. Thirty focused additions
+cover canonical stock/fund and neutral classification, distinct active counts,
+closed/derivative exclusions, small/concentrated portfolios, fewer/exactly/more
+than five holdings, duplicate/conflicting rows, missing/stale/future/unverified
+quotes, zero denominators, partial scope, independent results, unchanged scope
+selection, and exact monthly income labels in both reports.
+
+All **126 retained V6.7.8 definitions** remain unchanged. Nine canonical synthetic
+scenarios retain exact financial comparisons. The confidential real-export
+comparison retains all **33 shared fields** against V6.7.8 and the captured
+v1.0.5 baseline, using identical prices, FX, dates and private event evidence.
+No new provider requests or private published fixtures are required.
+
+Streamlit replaces its redundant holdings plot with two composition bars beside
+income and keeps the five cards, then Top 10 and All Holdings. HTML uses the same
+prepared values with explicit reliable-valuations and partial-scope coverage.
+Desktop and 390 px mobile app checks pass without overflow; offline HTML also
+passes tablet checks, five TWR selections, CSP/injection tests and no external
+requests. Exact metric figures match both exports.
+
+The one-page A4 PDF retains its layout. Exact two-decimal income labels use a
+monthly-value key when adjacent bars cannot hold them. Rendered positive,
+negative, zero, partial, uncovered and large-value cases pass page/text bounds.
+Partial outlines remain; unavailable months are not zeros. The original benchmark
+insight and health qualifications are retained. Composition text is optional
+when footer space allows; no PDF composition chart is introduced.
+
+Generic Windows packaging retains frozen-worker/report smoke tests, manifest,
+CRC and SHA-256 checks, Python-independent startup, and private-marker scans.
+The installed shortcut workflow is validated locally with private evidence
+outside the generic package. Public uploads and derivative scrapers stay disabled;
+the original Holy Grail remains read-only. No financial calculations change.

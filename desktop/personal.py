@@ -11,7 +11,7 @@ import urllib.request
 import webbrowser
 
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parents[1]))
-VERSION='1.0.5'
+VERSION='1.0.6'
 
 def free_port():
     with socket.socket() as sock:
