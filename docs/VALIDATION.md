@@ -514,3 +514,9 @@ retained. One pre-update empty runtime directory from the previously running
 application is removed without deleting private files. Public CSV uploads remain
 disabled; the generic public demo uses only explicit fabricated distributions.
 Original Holy Grail code, repository and deployment are untouched.
+
+Deployed-host validation detects retention of the old synthetic fixture during
+hot reload. The fixture schema guard explicitly reloads the updated fabricated
+distribution inputs; the existing hot-deployment regression now covers this
+case. Publication waits for the corrected deployed 6/6 synthetic coverage and
+fresh Linux/Windows CI, without enabling any public provider requests.

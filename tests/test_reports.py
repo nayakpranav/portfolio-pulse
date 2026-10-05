@@ -220,6 +220,7 @@ def test_hot_deployment_refreshes_presentation_helpers_and_paired_reports(report
     import pulse.reporting as reporting
     import pulse.html_report as exported_html
     import pulse.pdf as exported_pdf
+    import pulse.synthetic as synthetic
     monkeypatch.setenv('FOLIOLENS_MODE','public_demo')
     monkeypatch.delattr(charts,'benchmark_alias')
     monkeypatch.setattr(charts,'CHART_SCHEMA_VERSION',0)
@@ -228,6 +229,8 @@ def test_hot_deployment_refreshes_presentation_helpers_and_paired_reports(report
     monkeypatch.setattr(reporting,'holding_cards',lambda rows:'stale holding presentation')
     monkeypatch.setattr(exported_html,'HTML_SCHEMA_VERSION',1)
     monkeypatch.setattr(exported_pdf,'PDF_SCHEMA_VERSION',3)
+    monkeypatch.setattr(synthetic,'SYNTHETIC_SCHEMA_VERSION',0)
+    monkeypatch.setattr(synthetic,'fixture',lambda: (b'old fixture',{}))
     model=prepare(deepcopy(report_results['demo']),date(2026,10,4))
     app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'streamlit_app.py'))
     for key,value in dict(model=model,pdf=b'old',html=b'old',export_schema=(3,1)).items():app.session_state[key]=value
@@ -237,6 +240,7 @@ def test_hot_deployment_refreshes_presentation_helpers_and_paired_reports(report
     assert 'stale holding presentation' not in app.session_state['html'].decode()
     assert 'width:32px' in app.session_state['html'].decode()
     assert app.session_state['export_schema']==(9,7)
+    assert synthetic.fixture()[1]['dividend_snapshots']
     assert len(app.metric)==8 and app.session_state['pdf'].startswith(b'%PDF')
 
 

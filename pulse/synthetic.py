@@ -1,6 +1,7 @@
 """Entirely fabricated transactions and prices, never based on a personal export."""
 import csv
 from io import StringIO
+SYNTHETIC_SCHEMA_VERSION = 2
 
 COLUMNS = ['datetime','date','account_type','category','type','asset_class','name','symbol','shares','price','amount','fee','tax','currency','original_amount','original_currency','fx_rate','description','transaction_id','counterparty_name','counterparty_iban','payment_reference','mcc_code']
 

@@ -27,6 +27,8 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 from pulse.runner import run_analysis,AnalysisError
+import pulse.synthetic as _synthetic
+if getattr(_synthetic,'SYNTHETIC_SCHEMA_VERSION',0)!=2:importlib.reload(_synthetic)
 from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
