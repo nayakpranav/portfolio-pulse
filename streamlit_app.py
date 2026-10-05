@@ -30,12 +30,12 @@ from pulse.runner import run_analysis,AnalysisError
 from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
-if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=5:importlib.reload(_adapter)
-if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=8:importlib.reload(_pdf)
+if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=6:importlib.reload(_adapter)
+if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=9:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 import pulse.html_report as _html_report
-if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=6:importlib.reload(_html_report)
+if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=7:importlib.reload(_html_report)
 from pulse.html_report import html_report, HTML_SCHEMA_VERSION
 from pulse.reporting import HOLDING_CSS, holding_cards, table_frame, HOLDING_EXPLANATION
 from pulse.composition import COMPOSITION_CSS, composition_panel
@@ -93,7 +93,7 @@ with st.sidebar:
     demo = st.button('Try with Demo Portfolio',type='secondary' if upload_enabled else 'primary',use_container_width=True,disabled=selection=='Custom Yahoo Finance ticker')
     if st.button('Clear session results',use_container_width=True):
         for key in list(st.session_state):
-            if key in {'model','pdf','html','export_schema','input_digest','twr_period','start_demo','analysis_scope'} or key.startswith(('event_','manual_')):
+            if key in {'model','pdf','html','export_schema','input_digest','twr_period','performance_view','start_demo','analysis_scope'} or key.startswith(('event_','manual_')):
                 st.session_state.pop(key,None)
         st.session_state.pop(f'upload_{upload_epoch}',None)
         st.session_state['upload_epoch'] = upload_epoch+1
@@ -236,8 +236,22 @@ for offset in (0,4):
 
 st.markdown('### Portfolio versus Benchmark')
 st.caption(model.get('returns_scope_label','Stocks & funds')+' wealth · EUR · cash-flow-matched benchmark · excludes cash and derivatives')
+view=st.segmented_control('Historical chart view',['Wealth (EUR)','Drawdown (%)'],default='Wealth (EUR)',key='performance_view')
 nav = model['nav']
-if not nav.empty:
+if view=='Drawdown (%)':
+    from pulse.analytics import risk_summary
+    risk=model['drawdown']
+    if risk['available']:
+        risk_data=pd.DataFrame(risk['series'])
+        lower=min(-1,risk['maximum']*1.15)
+        base=alt.Chart(risk_data).encode(x=alt.X('date:T',title='Date',axis=alt.Axis(format='%b %Y',tickCount=6)),y=alt.Y('drawdown_pct:Q',title='TWR drawdown (%)',scale=alt.Scale(domain=[lower,0],nice=False)),tooltip=[alt.Tooltip('date:T',title='Date'),alt.Tooltip('drawdown_pct:Q',title='Drawdown (%)',format='.2f')])
+        chart=base.mark_area(color='#42cbea',opacity=.18)+base.mark_line(color='#42cbea',strokeWidth=2.5)+alt.Chart(pd.DataFrame({'zero':[0]})).mark_rule(color='#91a7bc').encode(y='zero:Q')
+        st.altair_chart(chart.properties(height=330),use_container_width=True)
+        st.write(risk_summary(risk))
+        st.caption(f"Latest observation: {risk['date']:%d %b %Y} · {risk['scope']}")
+    else:st.info(risk_summary(risk))
+    st.caption(risk['note'])
+elif not nav.empty:
     columns = {'stockfund_value_eur':'Actual stock/fund wealth'}
     if model['by_key']['benchmark'].value is not None:columns['benchmark_pme_value_eur']=benchmark_alias(model)
     chart_data = nav[['date',*columns]].rename(columns=columns).melt('date',var_name='Series',value_name='Value')
@@ -277,14 +291,17 @@ with income_col:
         tooltip=['label:N','status:N',alt.Tooltip('dividends:Q',format=',.2f'),alt.Tooltip('interest:Q',format=',.2f'),alt.Tooltip('total:Q',format=',.2f')]).properties(height=200)
     st.altair_chart(chart,use_container_width=True)
     st.caption('Complete = covered month-end. Partial = incomplete coverage. Uncovered months have no value; a covered zero is actual zero income.')
+    from pulse.analytics import forward_display
+    forecast=model['forward_dividends']
+    st.markdown('**'+forecast['label']+'** · '+forward_display(forecast))
+    st.caption(forecast['status']+' · '+forecast['note'])
 with holdings_col:
     st.markdown('### Portfolio Composition')
     st.markdown('<style>'+COMPOSITION_CSS+'</style>'+composition_panel(model['composition']),unsafe_allow_html=True)
 
 st.markdown('### Your Five Largest Holdings')
-st.caption('Valued stocks/funds · no constituent look-through. Thin bars show size relative to the largest holding; percentages show allocation.')
+st.caption('Valued stocks/funds · no constituent look-through. Thin bars show size relative to the largest holding; percentages show allocation. '+HOLDING_EXPLANATION)
 st.markdown(holding_cards(snap['top_holdings']),unsafe_allow_html=True)
-st.caption(HOLDING_EXPLANATION)
 with st.expander('See Top 10 holdings'):
     st.dataframe(table_frame(snap['top_holdings']),hide_index=True,use_container_width=True)
     st.caption('Closed and derecognized positions are excluded. Unpriced holdings are not assigned zero.')

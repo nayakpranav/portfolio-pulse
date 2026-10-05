@@ -462,3 +462,55 @@ session clearing and graceful cleanup pass. The encrypted private profile is
 preserved. Generic package CRC, SHA-256, 4,228 file hashes, private-marker scans
 and a frozen runtime without Python on PATH pass. Public uploads remain disabled
 and Holy Grail is untouched.
+
+
+## FolioLens Personal v1.0.10
+
+The full regression/security suite passes **284 tests** (236 retained baseline
+checks plus 48 risk/income checks), with no failures or skips. A final focused
+report/risk suite passes 80 tests; transport budget and timeout checks also pass.
+Nine synthetic comparisons and a new controlled exact-export comparison match
+V6.7.8 across **34 unrounded result fields**. All 126 retained definitions and
+original reference hashes remain unchanged. Existing captured financial fields,
+headline metrics, holdings, income and diagnostics match v1.0.9; only the
+nonfinancial elapsed derivative-day counter is excluded from date-to-date checks.
+
+Drawdown reconciles canonical NAV, linked daily returns, cumulative TWR and
+maximum/current risk. Tests cover baseline peaks, withdrawals, new highs,
+losses, complete loss, interior gaps, dates, partial valuations, estimates and
+unpriced derivatives. Forward tests cover the exact known-net field, zero-growth
+scenario, observed retention, USD/EUR/minor-unit/unknown FX, missing provider
+inputs, zero distributions, accumulating-fund states, incomplete net/holding
+coverage, stale/future references, receipt review and independent recognized
+income. No alternative accounting or forecasting engine is introduced.
+
+Actual normal and extreme-return/income PDFs render on one landscape A4 page;
+text bounds and ordinary-size visual inspection pass. Two-decimal/integer/
+explicit-overflow return formats are measured with font metrics. Monthly
+negative, zero, partial and uncovered amounts retain their exact semantics.
+Risk and qualified forward notes fit without colliding with income labels.
+Offline HTML passes desktop (1440), tablet (1024) and mobile (390), native-button
+keyboard switching, selected/hidden accessibility, all five independent TWR
+controls, CSP hashes, escaped hostile strings and zero external requests. Both
+reports display the same selected-model figures; private worker/capture/event
+objects are not exported.
+
+The generic frozen Windows package passes its worker/PDF/HTML/event-persistence
+self-test with Python removed from PATH. SHA-256, ZIP CRC and 4,228 manifest file
+hashes pass, including private-record/registry-marker exclusion. The existing
+personal installation is updated and matches the package manifest. Actual
+shortcut startup, browser opening, loopback binding, profile recognition,
+desktop/mobile demo, both downloads, session clearing, closing and reopening
+pass. The unchanged exact private CSV is uploaded locally through the installed
+application: automatic prior-event recognition, eight available stock/fund
+metrics, default benchmark, wealth/drawdown, five TWR periods, holdings, both
+matching private downloads and clear-session all pass. Live forward distribution
+coverage remains explicitly partial; the known subtotal and low-confidence
+broker fallback are disclosed, rather than called a complete forecast. Seven
+unpriced derivatives still leave full-portfolio value/profit unavailable.
+
+After shutdown, the runtime is empty and the encrypted private event profile is
+retained. One pre-update empty runtime directory from the previously running
+application is removed without deleting private files. Public CSV uploads remain
+disabled; the generic public demo uses only explicit fabricated distributions.
+Original Holy Grail code, repository and deployment are untouched.

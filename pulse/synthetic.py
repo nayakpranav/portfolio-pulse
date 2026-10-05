@@ -53,4 +53,7 @@ def fixture(kind='demo'):
     securities = {f'ZZ00000000{i:02d}': {'start':20*i,'end':20*i*(1.15 if i % 2 else .94)} for i in range(1,count+1)}
     if kind == 'missing_price':
         securities['ZZ0000000001']['missing'] = True
-    return output.getvalue().encode(), {'asof':'2026-09-30','securities':securities,'benchmark':{'start':100,'end':109},'benchmarks':{'IWDA.AS':{'start':100,'end':109},'VWCE.DE':{'start':100,'end':108},'SXR8.DE':{'start':100,'end':112}}}
+    snapshots={isin:dict(ticker=isin,history=[],calendar={},currency='EUR',history_status='OK',calendar_status='EMPTY_OR_UNAVAILABLE',diagnostic='Explicit fabricated distribution data',retrieved_at='2026-09-30T00:00:00+00:00') for isin in securities}
+    if kind in {'demo','dividends'}:
+        snapshots['ZZ0000000002' if kind=='demo' else 'ZZ0000000001']['history']=[dict(ex_date=f'2026-{month:02d}-16',dps=(8+month)/12) for month in (2,4,6,8)]
+    return output.getvalue().encode(), {'asof':'2026-09-30','securities':securities,'dividend_snapshots':snapshots,'benchmark':{'start':100,'end':109},'benchmarks':{'IWDA.AS':{'start':100,'end':109},'VWCE.DE':{'start':100,'end':108},'SXR8.DE':{'start':100,'end':112}}}

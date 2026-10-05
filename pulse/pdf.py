@@ -9,6 +9,7 @@ from pulse.charts import wealth_range, benchmark_alias
 from pulse.design import COLORS
 from pulse.scopes import blocker_message
 from pulse.reporting import warning_summary, MINT
+from pulse.analytics import risk_summary, forward_display
 from investment_snapshot_pdf import (_panel,_label,_truncate,_holding_name_lines,_kpi_icon,
     BG,WHITE,MUTED,CYAN,BLUE,GREEN,AMBER,GRID)
 
@@ -20,7 +21,19 @@ def panel(c,x,y,width,height):
     c.setFillColor(HexColor(COLORS['surface']));c.setStrokeColor(GRID)
     c.setLineWidth(.4);c.roundRect(x,y,width,height,7,fill=1,stroke=1)
 
-PDF_SCHEMA_VERSION = 8
+PDF_SCHEMA_VERSION = 9
+
+
+def compact_return(value,width,font='Helvetica-Bold',size=8):
+    """Fit a known return using actual rendered width, never call it missing."""
+    from pulse.reporting import signed_percent, return_state
+    state=return_state(value)
+    if state=='unavailable':return 'N/A',False
+    directional=state in {'positive','negative'}
+    allowance=width-(17 if directional else 0)
+    for label in (signed_percent(value),f'{value:+,.0f}%' if value else '0%'):
+        if stringWidth(label,font,size)<=allowance:return label,directional
+    return 'See HTML*',False
 
 def ascii_text(value):
     return str(value).replace('€','EUR ').replace('—','-').replace('–','-').encode('latin-1','replace').decode('latin-1')
@@ -132,17 +145,25 @@ def summary_pdf(model):
             _label(c,' | '.join(endpoints),px+pw-12,py+ph-46,5.5,MUTED,align='right')
     else:
         _label(c,'Unavailable - data requires review',px+30,py+78,10,AMBER)
+    _label(c,risk_summary(model['drawdown']),px+12,py+2,7,MUTED)
     # Canonical monthly amounts and status markers; no forecast or uncovered zeros.
     ix,iy,iw,ih=514,220,w-542,149
     panel(c,ix,iy,iw,ih)
     _label(c,f"NET INVESTMENT INCOME | {data['year']}",ix+12,iy+ih-20,9,WHITE,'Helvetica-Bold')
     _label(c,'Recognized net income; outline = partial',ix+12,iy+ih-35,6.8,MUTED)
+    forecast=model['forward_dividends']
+    _label(c,'Forward 12M net dividends (known est.): '+forward_display(forecast,'EUR '),ix+12,iy+ih-46,7,MUTED)
+    asof=f" | {forecast['asof']:%d %b %y}" if forecast['asof'] else ''
+    coverage=f"{forecast['covered_count']}/{forecast['active_count']} coverage" if forecast['available'] else 'Unavailable'
+    fallback=' | broker seasonality' if 'broker-receipt seasonality' in forecast['note'] else ''
+    _label(c,coverage+fallback+asof+' | excl. interest; not guaranteed',ix+12,iy+ih-56,6.5,MUTED)
     months=data['months'];amounts=[monthly_amount(m) for m in months]
     scale=max([abs(v) for v in amounts if v is not None] or [1]) or 1
     gx,gw=ix+15,iw-30
     mode,columns=income_label_layout(months,gw)
     signed=any(v is not None and v<0 for v in amounts)
-    gy,gh=(iy+45,50) if mode=='bars' else (iy+70,35) if columns==3 else (iy+86,20)
+    # Reserve a distinct two-line forecast note above the recognized bars.
+    gy,gh=(iy+40,36) if mode=='bars' else (iy+64,24) if columns==3 else (iy+82,6)
     baseline=gy+gh/2 if signed else gy
     c.setStrokeColor(GRID);c.setLineWidth(.4);c.line(gx,baseline,gx+gw,baseline)
     for j,(m,val) in enumerate(zip(months,amounts)):
@@ -162,7 +183,10 @@ def summary_pdf(model):
     _label(c,'EUR | * partial / outline | - uncovered, not zero',ix+14,iy+3,6.5,MUTED)
     # Compact holdings strip with the canonical valued-stock/fund denominator.
     _label(c,'LARGEST VALUED STOCK/FUND HOLDINGS',28,204,9,WHITE,'Helvetica-Bold')
-    _label(c,'Weights use valued stock/fund assets; Returns are unrealized return on remaining acquisition basis.',28,191,8,MUTED)
+    compact_overflow=any(compact_return(r.get('return_pct'),(w-56)/5-6-46)[0]=='See HTML*' for r in data['top_holdings'][:5])
+    note='Weights use valued stock/fund assets; Returns are unrealized return on remaining acquisition basis.'
+    if compact_overflow:note+=' * Return exceeds card width; exact value in HTML/app.'
+    _label(c,note,28,191,8,MUTED)
     for i,r in enumerate(data['top_holdings'][:5]):
         x=28+i*(w-56)/5;tile_w=(w-56)/5-6
         panel(c,x,106,tile_w,77)
@@ -171,8 +195,7 @@ def summary_pdf(model):
         _label(c,_truncate(ascii_text(r['name']),tile_w-20,8.8),x+10,146,8.8,WHITE)
         from pulse.reporting import signed_percent, return_state
         ret=r.get('return_pct');state=return_state(ret)
-        badge=signed_percent(ret) if state!='unavailable' else 'N/A'
-        directional=state in {'positive','negative'}
+        badge,directional=compact_return(ret,tile_w-46)
         width=stringWidth(badge,'Helvetica-Bold',8)
         if width+(17 if directional else 0)<=tile_w-46:
             shade=HexColor(MINT) if state=='positive' else HexColor('#fca5a5') if state=='negative' else MUTED

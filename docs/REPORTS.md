@@ -154,3 +154,53 @@ names sit beneath the header; long PDF names are abbreviated and remain complete
 in HTML and tables. Individual PDF labels no longer repeat Open; section text
 explains unrealized return. One-page geometry, financial values and tables stay
 unchanged. No external assets or new financial calculations are introduced.
+
+
+## v1.0.10 risk and forward-income reporting
+
+The wealth panel defaults to Wealth (EUR). Drawdown (%) displays stocks/funds
+only, from the canonical daily `stockfund_nav_index` and
+`stockfund_drawdown_pct`, not EUR wealth or cash-flow-matched benchmark wealth.
+The initial 100 index baseline is included in running peaks. The reporting
+adapter verifies linked daily returns, canonical cumulative TWR, maximum/current
+drawdown, calendar continuity and price coverage. An interior missing return or
+inconsistent input makes risk unavailable; no gap is bridged. A supported
+unaffected scope stays explicitly partial. Historical price estimates retain
+their warning. Unpriced derivatives do not invalidate stock/fund risk.
+
+Forward 12M Net Dividends (Known Est.) is independent of recognized YTD income.
+A reporting-only invocation of the retained V6.7.8 `build_dividend_analytics`
+uses an explicit **zero-growth** scenario; accounting and recognized income are
+not rerun or replaced. It maps the unrounded canonical
+`forward_12m_estimated_net_known_subtotal_eur`. The engine keeps declared-event
+entitlements, distribution seasonality, issuer-specific observed gross/net
+retention, corporate-action unit adjustments, EUR/minor-unit FX and receipt
+reconciliation. It includes earned entitlements for recently closed securities
+within the canonical 180-day discovery window; interest is excluded.
+
+The adapter distinguishes quantified-event coverage from active-holding
+coverage. Unknown distribution amounts, payment dates, net retention, currency,
+receipt reviews or uncovered securities qualify the known subtotal as partial.
+A complete quantified-event subtotal alone cannot certify the whole portfolio.
+Canonical broker-receipt seasonal fallback is disclosed as low confidence and
+does not infer current quantities. Apparent accumulating-fund/no-history states
+retain the canonical treatment; no known distribution guarantees future zero.
+Missing inputs are unavailable rather than invented zeros. The forecast window
+starts at the canonical transaction reference date; a reference more than 31
+days old is unavailable until a current export is analyzed.
+
+Personal mode uses the existing authorized Yahoo-only worker transport,
+10-second request limits, rate-limit circuit breaker and global request budget.
+Optional dividend retrieval also has a 25-second budget and respects the
+remaining worker time reserved for output/cleanup. Explicit fabricated dividend
+snapshots drive the public demo; no additional public provider requests occur.
+Captures contain only public ticker distribution/FX inputs and stay private.
+
+The offline HTML toggle uses native keyboard-accessible buttons, `aria-pressed`,
+controlled hidden regions and a recalculated script SHA-256 CSP. Five-period TWR
+controls remain independent. PDF retains its single-page wealth/income charts,
+adds a compact drawdown summary and a qualified forward-income note. Extremely
+large card returns use measured font width: signed two decimals, then rounded
+whole percent, then `See HTML*` with an explicit explanation. Precise return
+values remain in app/HTML tables. The unrealized-return definition now precedes
+holding cards in both interactive presentations.

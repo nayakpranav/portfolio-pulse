@@ -127,6 +127,13 @@ def write_results(ns):
                 name=str(row['security_name']),isin=str(row['isin']),type=str(row['type_norm']),
                 quantity=serialize(row['shares']),reason=str(rule['notes'])))
     result['review_transactions']=review_rows
+    from pulse.forward import forward_source
+    try:
+        result['forward_dividends']=forward_source(ns)
+    except Exception:
+        # An optional forecast must never suppress completed financial results
+        # or leak a provider exception containing private holdings.
+        result['forward_dividends']={'status':'UNAVAILABLE','diagnostic':'Canonical dividend reporting inputs could not be validated.'}
     if os.environ.get('FOLIOLENS_CAPTURE')=='1':
         result['market_capture']={'calls':ns.get('_foliolens_capture',{}),'benchmark':ns.get('_foliolens_benchmark',{})}
     Path(os.environ['PULSE_RESULT_PATH']).write_text(json.dumps(result,allow_nan=False),encoding='utf-8')

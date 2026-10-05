@@ -4,7 +4,8 @@ Your investments, in focus.
 
 An independent, unofficial Streamlit application for Trade Republic transaction
 exports. A pinned V6.7.8 analytical core powers eight essential metrics, three
-charts, deterministic observations, contextual explanations and a private,
+charts, a TWR drawdown view, a qualified forward-dividend estimate, deterministic
+observations, contextual explanations and a private,
 one-page A4 landscape PDF and a self-contained offline HTML report.
 
 **Release status:** real-data personal analysis implemented; public synthetic demo. The public release defaults

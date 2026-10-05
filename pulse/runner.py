@@ -143,6 +143,9 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=300, engine_
                    '--no-enable-derivative-quotes','--benchmark-ticker',benchmark or 'FOLIOLENS_DISABLED',
                    '--benchmark-name',benchmark_name(benchmark, prices is not None),
                    '--no-export-raw','--no-export-redacted']
+        # Reserve output/cleanup time. Optional dividend reporting cannot spend
+        # the time already consumed by required canonical analysis a second time.
+        env['FOLIOLENS_FORECAST_DEADLINE']=str(time.monotonic()+max(0,timeout-10))
         try:
             returncode=execute_worker(command,work,env,timeout)
         except WorkerLimitError as exc:

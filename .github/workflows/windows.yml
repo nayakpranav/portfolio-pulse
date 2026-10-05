@@ -26,6 +26,7 @@ jobs:
           if(-not $result.html -or -not $result.scoped_html){throw 'Portable HTML exports failed'}
           if($result.stock_fund_scope_metrics -ne 8 -or $result.unpriced_derivatives -ne 7 -or -not $result.full_portfolio_partial -or -not $result.scoped_pdf){throw 'Portable partial-scope result failed'}
           if(-not $result.exact_event_persistence -or -not $result.changed_export_recognition){throw 'Portable private evidence persistence failed'}
+          if(-not $result.canonical_drawdown -or -not $result.forward_dividends -or -not $result.offline_chart_toggle){throw 'Portable risk/income reports failed'}
       - uses: actions/upload-artifact@v4
         with:
           name: FolioLens-Personal-Windows

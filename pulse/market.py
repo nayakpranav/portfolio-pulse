@@ -6,6 +6,7 @@ historical reconstruction and PME are called unchanged.
 from datetime import date
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import time
@@ -29,14 +30,19 @@ def install_transport_controls(ns):
         original=cls.request
         def controlled(self, method, url, _original=original, **kwargs):
             provider='openfigi' if urlparse(str(url)).hostname=='api.openfigi.com' else 'yahoo'
-            if not allowed_host(url) or provider in state['restricted_providers'] or state['requests']>=800:
+            if not allowed_host(url) or provider in state['restricted_providers'] or state['requests']>=800 or time.monotonic()>=state.get('forecast_deadline',float('inf')):
                 raise RuntimeError('Provider unavailable or request budget exceeded')
             timeout=kwargs.get('timeout',10)
             kwargs['timeout']=min(float(timeout or 10),10) if not isinstance(timeout,tuple) else (5,10)
+            remaining=state.get('forecast_deadline',float('inf'))-time.monotonic()
+            if math.isfinite(remaining):
+                cap=max(.001,remaining)
+                kwargs['timeout']=tuple(min(v,cap/2) for v in kwargs['timeout']) if isinstance(kwargs['timeout'],tuple) else min(kwargs['timeout'],cap)
             # Providers have fixed destinations. Refuse redirects to unapproved services.
             kwargs['allow_redirects']=False
             for attempt in range(2):
                 if state['requests']>=800:raise RuntimeError('Provider request budget exceeded')
+                if time.monotonic()>=state.get('forecast_deadline',float('inf')):raise RuntimeError('Dividend reporting request budget exceeded')
                 state['requests']+=1
                 try:
                     response=_original(self,method,url,**kwargs)

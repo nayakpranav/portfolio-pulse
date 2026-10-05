@@ -6,7 +6,7 @@ import pandas as pd
 from pulse.core import build_snapshot_data
 from pulse.scopes import availability, blocker_message
 
-MODEL_SCHEMA_VERSION = 5
+MODEL_SCHEMA_VERSION = 6
 
 @dataclass(frozen=True)
 class Metric:
@@ -210,7 +210,11 @@ def prepare(result, report_date=None, analysis_scope=None):
     composition_data=composition(result,composition_date,not stock_blocked,bool(partial))
     holdings,holding_issues=project_holdings(result,snapshot,composition_date) if not stock_blocked else ([],[])
     issues.extend(holding_issues)
-    return dict(composition=composition_data,metrics=metrics,by_key=by_key,snapshot=snapshot,nav=nav,issues=list(dict.fromkeys(issues)),
+    from pulse.analytics import drawdown, forward_dividends
+    returns_scope='Unaffected stocks & funds (partial)' if partial else 'Stocks & funds'
+    risk=drawdown(nav,historical,returns_scope,not stock_blocked and history_ok and dividends_sound)
+    forecast=forward_dividends(complete_result,composition_date,not stock_blocked and dividends_sound and not partial)
+    return dict(drawdown=risk,forward_dividends=forecast,composition=composition_data,metrics=metrics,by_key=by_key,snapshot=snapshot,nav=nav,issues=list(dict.fromkeys(issues)),
                 health='Review required' if blocked or income_blocked else 'Partial' if issues else 'Complete',
                 insights=insights[:5],periods=periods,raw=complete_result,valuation_missing=missing,
                 analysis_scope=analysis_scope,scope_label='Unaffected stocks & funds (partial)' if stock_scope and partial else 'Stocks & funds' if stock_scope else 'Full portfolio',
