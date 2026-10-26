@@ -25,7 +25,7 @@ def build():
         '--paths',str(ROOT),'--paths',str(ROOT/'vendor/v678')]
     for name in ('streamlit','yfinance','curl_cffi','altair'):
         command+=['--collect-all',name]
-    for name in ('pulse.runner','pulse.adapter','pulse.pdf','pulse.html_report','pulse.reporting','pulse.design','pulse.composition','pulse.holding_performance','pulse.analytics','pulse.forward','pulse.synthetic','pulse.profile','pulse.event_review','pulse.partial','pulse.valuations','pulse.evidence','pulse.derivative_quotes','pulse.derivative_reporting','pulse.derivative_stuttgart','worker_hooks','psutil','bs4','requests','reportlab','pyarrow','uvicorn','websockets'):
+    for name in ('pulse.runner','pulse.adapter','pulse.pdf','pulse.html_report','pulse.reporting','pulse.design','pulse.composition','pulse.holding_performance','pulse.analytics','pulse.forward','pulse.synthetic','pulse.profile','pulse.event_review','pulse.partial','pulse.valuations','pulse.evidence','pulse.derivative_quotes','pulse.derivative_reporting','pulse.derivative_cache','worker_hooks','psutil','bs4','requests','reportlab','pyarrow','uvicorn','websockets'):
         command+=['--hidden-import',name]
     for name in ('pytest','playwright','pymupdf','pip_audit','IPython','matplotlib','scipy','quantstats','skfolio','edgar','pytr'):
         command+=['--exclude-module',name]

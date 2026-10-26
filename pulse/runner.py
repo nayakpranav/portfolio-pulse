@@ -137,6 +137,10 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=300, engine_
         # This attestation is derived here, not inherited from arbitrary parent
         # variables. Public/owner-hosted and synthetic workers never collect it.
         env['FOLIOLENS_AUTO_DERIVATIVE_DOCUMENTS']='1' if prices is None and mode()=='personal' and uploads_enabled() else '0'
+        if env['FOLIOLENS_AUTO_DERIVATIVE_DOCUMENTS']=='1' and replay is None:
+            from pulse.profile import configured_root
+            directory=configured_root()
+            if directory is not None:env['FOLIOLENS_DERIVATIVE_CACHE_DIRECTORY']=str(directory/'quote-cache')
         env['PULSE_BENCHMARK_DISABLED'] = '1' if benchmark is None else '0'
         if prices is not None:
             work.joinpath('prices.json').write_text(json.dumps(prices))

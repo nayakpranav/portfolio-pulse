@@ -16,7 +16,7 @@ from pulse.composition import COMPOSITION_CSS, composition_panel
 from pulse.reporting import HOLDING_CSS, holding_cards, money, table_html, HOLDING_EXPLANATION
 from pulse.analytics import risk_summary, forward_display
 
-HTML_SCHEMA_VERSION = 10
+HTML_SCHEMA_VERSION = 11
 SCRIPT = '''document.querySelectorAll('[data-period]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-period]').forEach(function(other){other.setAttribute('aria-pressed','false');});button.setAttribute('aria-pressed','true');document.getElementById('period-value').textContent=button.dataset.display;document.getElementById('period-dates').textContent=button.dataset.dates;});});'''
 SCRIPT += '''document.querySelectorAll('[data-view]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-view]').forEach(function(other){other.setAttribute('aria-pressed',String(other===button));var panel=document.getElementById(other.dataset.view+'-view');panel.hidden=other!==button;panel.setAttribute('aria-hidden',String(other!==button));});});});'''
 STYLE = CSS_TOKENS+'''[hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;background:var(--fl-background);color:var(--fl-text);font:16px/1.55 system-ui,sans-serif}main{max-width:1300px;margin:auto;padding:32px}
@@ -158,8 +158,9 @@ def html_report(model):
     parts.append(evidence_details(model))
     center=model.get('derivative_quotes',{})
     if center.get('active'):
-        from pulse.derivative_reporting import quote_summary,quote_table_rows
+        from pulse.derivative_reporting import quote_summary,quote_table_rows,indicative_summary
         rows=quote_table_rows(center);columns=list(rows[0])
+        parts.append('<p class="muted">'+text(indicative_summary(center))+'</p>')
         parts.append('<details class="derivative-quote-center"><summary>Derivative Quote Center</summary><p>'+text(quote_summary(center))+'</p><p class="muted">'+text(center['note'])+'</p><div class="table-scroll" tabindex="0" role="region" aria-label="Derivative quotation details; scroll horizontally to see all columns"><table class="derivative-quotes-table"><thead><tr>'+''.join('<th>'+text(k)+'</th>' for k in columns)+'</tr></thead><tbody>'+''.join('<tr>'+''.join('<td>'+text(row[k])+'</td>' for k in columns)+'</tr>' for row in rows)+'</tbody></table></div><p class="muted">Snapshot evidence only. Scroll the table to see all quote fields. This offline report makes no quotation requests. Raw provider documents and private transaction identifiers are not included.</p></details>')
     parts.append('<footer><div><h3>Financial scope</h3><p>Stocks/funds lifetime profit excludes derivatives and cash interest. Full-portfolio lifetime profit includes net income. Capital committed and recovery cover the full ecosystem; recovery is not withdrawable cash. Missing data remains unavailable.</p></div><div><h3>Benchmark and sources</h3><p>Benchmark: '+text(model['raw'].get('benchmark_name','No comparison'))+' · EUR reporting. Comparisons require validated adjusted prices, EUR conversion and matched cash-flow dates. Historical estimates, stale quotes and incomplete inputs are disclosed above.</p></div><div class="disclaimer"><p>Offline report: no provider requests, external scripts, fonts or login are required. This file contains financial information; clearing the application does not delete files you download.</p><p>Unofficial independent analysis. Not affiliated with Trade Republic. Not a tax certificate or investment recommendation.</p></div></footer></main><script>'+SCRIPT+'</script></body></html>')
     return ''.join(parts).encode('utf-8')

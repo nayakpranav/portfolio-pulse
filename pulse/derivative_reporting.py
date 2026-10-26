@@ -2,7 +2,7 @@
 from datetime import date
 import math
 import re
-from pulse.derivative_quotes import finite_positive
+from pulse.derivative_quotes import finite_positive,Observation,timestamp,validate_indicative,VONTOBEL_HOST
 
 
 def _text(value,limit=200):
@@ -64,23 +64,54 @@ def quote_center(raw):
         isin=position['isin'];audit=audits.get(isin,{})
         attempts=audit.get('attempts',[]);selected=audit.get('selected') or {}
         exact=[a for a in attempts if a.get('identity')=='EXACT_ISIN']
-        observation=selected or next((a for a in exact if a.get('bid') is not None or a.get('ask') is not None),{}) or next(iter(exact),{})
+        indicative=None
+        candidate=audit.get('indicative')
+        if isinstance(candidate,dict):
+            try:
+                dated=Observation(**{k:candidate[k] for k in Observation.__dataclass_fields__})
+                checked=validate_indicative(dated,now=timestamp(audit.get('evaluated_at')),allowed_hosts=(VONTOBEL_HOST,))
+                if checked['eligible_indicative'] and dated.requested_isin==isin:indicative=checked
+            except (KeyError,ValueError,TypeError):pass
+        observation=selected or indicative or next((a for a in exact if a.get('bid') is not None or a.get('ask') is not None),{}) or next(iter(exact),{})
         quantity=position.get('current_quantity');price=position.get('live_price_eur')
+        if position.get('quote_status') not in {'MANUAL_CONFIRMED','AUTO_VERIFIED_BID'}:price=None
         try:value=float(quantity)*float(price);value=value if math.isfinite(value) else None
         except (ValueError,TypeError):value=None
+        indicative_value=None
+        try:
+            if indicative and not isinstance(quantity,bool) and math.isfinite(float(quantity)) and float(quantity)>0:
+                indicative_value=float(quantity)*indicative['bid']
+                if not math.isfinite(indicative_value):indicative_value=None
+        except (TypeError,ValueError,OverflowError):pass
         rows.append(dict(isin=isin,label=derivative_label(position,raw.get('derivative_ledger',[]),audit.get('metadata')),
                          quantity=quantity,bid=finite_positive(observation.get('bid')),ask=finite_positive(observation.get('ask')),source=observation.get('provider',''),
                          observed_at=observation.get('observed_at',''),freshness=observation.get('freshness','UNKNOWN'),price_type=observation.get('price_type','NONE'),
                          currency=observation.get('currency',''),denomination=observation.get('denomination',''),
-                         status=position.get('quote_status','UNAVAILABLE'),value=value,reason=audit.get('status','No captured automatic quote evidence'),
-                         automatic=bool(selected and selected.get('accepted')),indicative=bool(not selected and observation.get('identity')=='EXACT_ISIN' and observation.get('currency')=='EUR' and any(finite_positive(observation.get(key)) is not None for key in ('bid','ask','last')))))
+                         status=position.get('quote_status','UNAVAILABLE'),value=value,indicative_value=indicative_value,
+                         reason=audit.get('status','No captured automatic quote evidence'),cache=audit.get('cache_warning') or audit.get('cache','Not used'),
+                         automatic=bool(selected and selected.get('accepted')),indicative=bool(indicative_value is not None and not selected)))
     automatic=sum(r['automatic'] for r in rows);indicative=sum(r['indicative'] for r in rows);missing=sum(r['value'] is None for r in rows)
+    estimates=[r['value'] if r['value'] is not None else r['indicative_value'] for r in rows]
+    covered=sum(v is not None for v in estimates)
     return dict(rows=rows,active=len(rows),automatic=automatic,indicative=indicative,missing=missing,
-                note='Verified automatic valuations require a recent exact-ISIN EUR-per-unit bid with a full timestamp. Indicative observations can be delayed, stale or have unverified units; check each qualification. Ask, last, delayed, closed-market and unknown-time observations do not complete valuation. Manual observations remain optional and separately labelled.')
+                indicative_coverage=covered,indicative_known_subtotal=sum(v for v in estimates if v is not None) if covered else None,
+                indicative_total=sum(estimates) if rows and covered==len(rows) else None,full_portfolio_estimate=None,
+                note='Indicative estimates accept exact-ISIN EUR-per-unit bids observed today or the previous weekday, including delayed/closing observations. No ask is required. Holidays do not extend this conservative date window. Source and actual timestamps remain visible. Indicative values never complete canonical valuation. Local cache refreshes once per weekday; unknown or expired observations remain unavailable. Manual observations remain optional and separately labelled.')
 
 
 def quote_summary(center):
     return f"Derivative quotes: {center['automatic']}/{center['active']} automatic bids; {center['indicative']} indicative only; {center['missing']} unvalued."
+
+
+def indicative_summary(center):
+    subtotal=center.get('indicative_known_subtotal')
+    if subtotal is None:return 'Indicative derivative valuation unavailable: no validated dated bids or optional manual values.'
+    if center.get('indicative_total') is None:
+        return f"Indicative derivative known subtotal: €{subtotal:,.2f} ({center['indicative_coverage']}/{center['active']} positions); incomplete, full-portfolio estimate unavailable."
+    text=f"Indicative derivative total: €{subtotal:,.2f}."
+    full=center.get('full_portfolio_estimate')
+    text+=f' Indicative full-portfolio estimate (cash excluded): €{full:,.2f}.' if full is not None else ' Indicative full-portfolio estimate unavailable: accounting or stock/fund coverage incomplete.'
+    return text+' Dated bid/manual evidence; not a live liquidation value or canonical complete-portfolio figure.'
 
 
 def quote_table_rows(center):
@@ -91,6 +122,7 @@ def quote_table_rows(center):
     return [{'Instrument':r['label'],'ISIN':r['isin'],'Units':r['quantity'],
              'Bid':amount(r['bid']) if r['currency']=='EUR' else 'Unavailable','Ask':amount(r['ask']) if r['currency']=='EUR' else 'Unavailable',
              'Quote convention':r['denomination'] or 'Unverified',
-             'Position value (EUR)':amount(r['value']),'Source':r['source'] or 'Unavailable',
+             'Position value (EUR)':amount(r['value']),'Indicative position estimate (EUR)':amount(r['indicative_value']),
+             'Source':r['source'] or 'Unavailable','Cache':r['cache'],
              'Observed at':r['observed_at'] or 'Unavailable','Freshness':r['freshness'].replace('_',' ').lower(),
              'Valuation':r['status'].replace('_',' ').lower(),'Diagnostic':r['reason'].replace('_',' ').lower()} for r in center['rows']]

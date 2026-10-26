@@ -32,12 +32,12 @@ if getattr(_synthetic,'SYNTHETIC_SCHEMA_VERSION',0)!=2:importlib.reload(_synthet
 from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
-if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=8:importlib.reload(_adapter)
-if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=10:importlib.reload(_pdf)
+if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=9:importlib.reload(_adapter)
+if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=11:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 import pulse.html_report as _html_report
-if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=10:importlib.reload(_html_report)
+if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=11:importlib.reload(_html_report)
 from pulse.html_report import html_report, HTML_SCHEMA_VERSION
 from pulse.reporting import HOLDING_CSS, holding_cards, table_frame, HOLDING_EXPLANATION
 from pulse.composition import COMPOSITION_CSS, composition_panel
@@ -225,9 +225,10 @@ with st.expander('Data health and coverage'):
     if model['dependencies']['missing_stock']:st.warning('Holdings rankings cover only valued stocks/funds; unpriced stock/fund positions are omitted. See all current holdings below.')
 if upload_enabled and not model['raw']['synthetic'] and model['derivative_quotes']['active']:
     with st.expander('Derivative Quote Center'):
-        from pulse.derivative_reporting import quote_table_rows, quote_summary
+        from pulse.derivative_reporting import quote_table_rows, quote_summary,indicative_summary
         st.write(quote_summary(model['derivative_quotes']))
         st.caption(model['derivative_quotes']['note'])
+        st.write(indicative_summary(model['derivative_quotes']))
         st.dataframe(pd.DataFrame(quote_table_rows(model['derivative_quotes'])),hide_index=True,use_container_width=True)
         st.caption('Automatic document requests transmit only instrument ISINs. Provider failures do not block valid stock/fund analysis. Reports preserve observation times; they do not refresh quotations offline.')
 if upload_enabled and not model['raw']['synthetic'] and model['dependencies']['missing_derivative']:

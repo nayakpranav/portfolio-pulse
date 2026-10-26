@@ -5,7 +5,7 @@ The private-copy provider currently often supplies identity without a quote.
 Missing evidence is an unsuccessful result, never a reason to scrape another API.
 """
 from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import hashlib
 import json
 import math
@@ -19,7 +19,9 @@ USER_AGENT = 'FolioLens-Personal/1.0 (private noncommercial document retrieval)'
 VONTOBEL_HOST = 'markets.vontobel.com'
 LIVE_AGE_SECONDS = 180
 DELAYED_AGE_SECONDS = 1200
-MAX_DOCUMENT_BYTES = 4*1024*1024
+MAX_DOCUMENT_BYTES = 384*1024
+MAX_COLLECTION_BYTES = 1536*1024
+COLLECTION_SECONDS = 8
 
 
 def isin_valid(value):
@@ -135,14 +137,50 @@ class ProviderError(Exception):
     """Only fixed diagnostic codes cross this boundary."""
 
 
+def previous_weekday(day):
+    """Conservative date floor: no unverified exchange-holiday extensions."""
+    day-=timedelta(days=1)
+    while day.weekday()>=5:day-=timedelta(days=1)
+    return day
+
+
+def validate_indicative(observation, *, now=None, allowed_hosts=()):
+    """Dated bids for a separate estimate; never canonical current valuations.
+
+    Reuse the strict structural evidence checks at observation time, then apply
+    the actual current date window. A missing ask is explicitly acceptable.
+    """
+    now=now or datetime.now(timezone.utc)
+    if now.tzinfo is None:raise ValueError('An aware evaluation timestamp is required')
+    observed=timestamp(observation.observed_at)
+    row=asdict(observation)
+    row.update(eligible_indicative=False,accepted=False,reason='FULL_QUOTE_TIMESTAMP_REQUIRED')
+    if observed is None:return row
+    checked=validate_observation(observation,now=observed,allowed_hosts=allowed_hosts)
+    # These failures concern executability only; all identity, source, units,
+    # price, spread, size and inactive-instrument checks have already run.
+    allowed={'RECENT_EXACT_ISIN_EUR_BID','MARKET_NOT_VERIFIED_OPEN','DELAYED_OBSERVATION_NOT_CURRENT_BID','DELAY_NOT_VERIFIED'}
+    row.update(checked,accepted=False)
+    if checked['reason'] not in allowed:return row
+    if observation.price_type!='BID' or finite_positive(observation.bid) is None:
+        row['reason']='ASK_OR_LAST_IS_NOT_BID';return row
+    if (now-observed).total_seconds()<0:row['reason']='FUTURE_QUOTE';return row
+    local=now.astimezone(ZoneInfo('Europe/Berlin'));day=observed.astimezone(ZoneInfo('Europe/Berlin')).date()
+    if day<previous_weekday(local.date()):row.update(reason='INDICATIVE_QUOTE_EXPIRED',freshness='STALE');return row
+    row.update(eligible_indicative=True,status='VALIDATED_INDICATIVE_BID',confidence='VALIDATED_DATED_BID',
+               reason='DATED_EXACT_ISIN_EUR_PER_UNIT_BID',freshness='OBSERVED_TODAY' if day==local.date() else 'PREVIOUS_WEEKDAY',
+               age_seconds=(now-observed).total_seconds())
+    return row
+
+
 class DocumentTransport:
     """Bounded transparent private document requests; no credentials or JS APIs."""
-    def __init__(self, session=None, *, budget_seconds=25, request_limit=20, clock=time.monotonic):
+    def __init__(self, session=None, *, budget_seconds=COLLECTION_SECONDS, request_limit=12, clock=time.monotonic):
         if session is None:
             import requests
             session=requests.Session()
         self.session=session;self.clock=clock;self.budget=budget_seconds;self.limit=request_limit
-        self.started=None;self.count=0;self.restricted=set();self.robots={};self.last_request={}
+        self.started=None;self.count=0;self.bytes=0;self.restricted=set();self.robots={};self.last_request={}
 
     def _download(self,url):
         parsed=urlparse(url);host=parsed.hostname
@@ -156,19 +194,22 @@ class DocumentTransport:
         if wait:
             if wait>=remaining:raise ProviderError('QUOTE_REQUEST_BUDGET')
             time.sleep(wait)
+        remaining=self.budget-(self.clock()-self.started)
+        if remaining<=0:raise ProviderError('QUOTE_REQUEST_BUDGET')
         self.count+=1;self.last_request[host]=self.clock()
         try:
-            response=self.session.get(url,headers={'User-Agent':USER_AGENT,'Accept':'text/html'},timeout=min(5,remaining),allow_redirects=False,stream=True)
+            response=self.session.get(url,headers={'User-Agent':USER_AGENT,'Accept':'text/html'},timeout=min(1,remaining/2),allow_redirects=False,stream=True)
             with response:
                 if response.status_code in {401,403,429}:
                     self.restricted.add(host);raise ProviderError('PROVIDER_RESTRICTED')
                 if response.status_code==404:raise ProviderError('INSTRUMENT_NOT_FOUND')
                 if 300<=response.status_code<400:return None,response.headers.get('Location','')
                 if response.status_code!=200:raise ProviderError('PROVIDER_UNAVAILABLE')
+                if int(response.headers.get('Content-Length','0'))>MAX_DOCUMENT_BYTES:raise ProviderError('PROVIDER_RESPONSE_TOO_LARGE')
                 chunks=[];size=0
-                for chunk in response.iter_content(65536):
-                    size+=len(chunk)
-                    if size>MAX_DOCUMENT_BYTES:raise ProviderError('PROVIDER_RESPONSE_TOO_LARGE')
+                for chunk in response.iter_content(16384):
+                    size+=len(chunk);self.bytes+=len(chunk)
+                    if size>MAX_DOCUMENT_BYTES or self.bytes>MAX_COLLECTION_BYTES:raise ProviderError('PROVIDER_RESPONSE_TOO_LARGE')
                     if self.clock()-self.started>self.budget:raise ProviderError('QUOTE_REQUEST_BUDGET')
                     chunks.append(chunk)
                 return b''.join(chunks),''
@@ -177,6 +218,9 @@ class DocumentTransport:
 
     def document(self,url):
         origin='https://'+VONTOBEL_HOST
+        parsed=urlparse(url)
+        if parsed.scheme!='https' or parsed.hostname!=VONTOBEL_HOST or parsed.username or parsed.password or parsed.port not in {None,443}:
+            raise ProviderError('UNAPPROVED_SOURCE')
         if VONTOBEL_HOST not in self.robots:
             data,redirect=self._download(origin+'/robots.txt')
             if redirect or data is None:raise ProviderError('ROBOTS_UNVERIFIED')
@@ -232,16 +276,17 @@ def parse_vontobel_document(isin,body,url):
 
 
 class Collector:
-    """Per-worker collection and audit. No global or persistent portfolio cache."""
-    def __init__(self,transport=None,*,isins=(),delayed=None):
+    """Small ISIN-level requests only; no universe download or bulk fallback."""
+    def __init__(self,transport=None,*,isins=(),cache=None):
         self.transport=transport or DocumentTransport();self.results={}
-        if delayed is None and isins:
-            from pulse.derivative_stuttgart import DelayedFileProvider
-            delayed=DelayedFileProvider(isins)
-        self.delayed=delayed
+        self.cache=cache
 
     def quote(self,isin):
         if isin in self.results:return self.results[isin]
+        now=datetime.now(timezone.utc)
+        cached=self.cache.get(isin,now) if self.cache else None
+        if cached is not None:
+            self.results[isin]=cached;return cached
         if not isin_valid(isin):
             result=dict(attempts=[],selected=None,metadata={},status='INVALID_ISIN')
         else:
@@ -254,12 +299,23 @@ class Collector:
                 result=dict(attempts=[dict(provider='Vontobel private document',requested_isin=isin,status='UNAVAILABLE',reason=str(error),accepted=False)],selected=None,metadata={},status=str(error))
             except Exception:
                 result=dict(attempts=[dict(provider='Vontobel private document',requested_isin=isin,status='UNAVAILABLE',reason='MALFORMED_PROVIDER_DOCUMENT',accepted=False)],selected=None,metadata={},status='MALFORMED_PROVIDER_DOCUMENT')
-        if self.delayed is not None and isin_valid(isin):
-            observation=self.delayed.quote(isin)
-            decision=validate_observation(observation,allowed_hosts=('www.boerse-stuttgart.de',))
-            result['attempts'].append(decision)
-            result['status']='; '.join(dict.fromkeys(a.get('reason','NO_QUOTE') for a in result['attempts']))
-        result['evaluated_at']=datetime.now(timezone.utc).isoformat()
+        result['evaluated_at']=datetime.now(timezone.utc).isoformat();result['indicative']=None
+        for attempt in result['attempts']:
+            try:
+                observation=Observation(**{k:attempt[k] for k in Observation.__dataclass_fields__})
+                indicative=validate_indicative(observation,allowed_hosts=(VONTOBEL_HOST,))
+                if indicative['eligible_indicative']:result['indicative']=indicative;break
+            except (KeyError,TypeError,ValueError):pass
+        result['cache']='MISS';result['network']=dict(requests=self.transport.count,received_bytes=self.transport.bytes,
+            elapsed_seconds=round(self.transport.clock()-self.transport.started,3) if self.transport.started is not None else 0)
+        if self.cache and not result['indicative']:
+            prior=self.cache.get(isin,now,allow_previous=True)
+            if prior is not None:
+                result['indicative']=prior['indicative'];result['attempts']+=prior['attempts'];result['cache']='DATED_FALLBACK'
+                if not result['metadata']:result['metadata']=prior['metadata']
+        if self.cache and isin_valid(isin):
+            self.cache.put(isin,result)
+            if self.cache.warning:result['cache_warning']=self.cache.warning
         self.results[isin]=result
         return result
 

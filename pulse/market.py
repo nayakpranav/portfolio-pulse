@@ -17,7 +17,7 @@ import pandas as pd
 def allowed_host(url, derivative_documents=False):
     parsed=urlparse(str(url))
     host=parsed.hostname or ''
-    return parsed.scheme=='https' and (host=='yahoo.com' or host.endswith('.yahoo.com') or host=='api.openfigi.com' or derivative_documents and host in {'markets.vontobel.com','www.boerse-stuttgart.de','ddl.service.boerse-stuttgart.de','d3s5kssjdy247b.cloudfront.net'})
+    return parsed.scheme=='https' and (host=='yahoo.com' or host.endswith('.yahoo.com') or host=='api.openfigi.com' or derivative_documents and host=='markets.vontobel.com')
 
 def install_transport_controls(ns):
     """Clamp requests; stop immediately on access restrictions, never evade them."""
@@ -30,7 +30,7 @@ def install_transport_controls(ns):
         original=cls.request
         def controlled(self, method, url, _original=original, **kwargs):
             host=urlparse(str(url)).hostname
-            provider='openfigi' if host=='api.openfigi.com' else 'vontobel_private_document' if host=='markets.vontobel.com' else 'stuttgart_delayed' if host in {'www.boerse-stuttgart.de','ddl.service.boerse-stuttgart.de','d3s5kssjdy247b.cloudfront.net'} else 'yahoo'
+            provider='openfigi' if host=='api.openfigi.com' else 'vontobel_private_document' if host=='markets.vontobel.com' else 'yahoo'
             if not allowed_host(url,os.environ.get('FOLIOLENS_AUTO_DERIVATIVE_DOCUMENTS')=='1') or provider in state['restricted_providers'] or state['requests']>=800 or time.monotonic()>=state.get('forecast_deadline',float('inf')):
                 raise RuntimeError('Provider unavailable or request budget exceeded')
             timeout=kwargs.get('timeout',10)
@@ -41,20 +41,15 @@ def install_transport_controls(ns):
                 kwargs['timeout']=tuple(min(v,cap/2) for v in kwargs['timeout']) if isinstance(kwargs['timeout'],tuple) else min(kwargs['timeout'],cap)
             # Providers have fixed destinations. Refuse redirects to unapproved services.
             kwargs['allow_redirects']=False
-            for attempt in range(2):
+            for attempt in range(1 if provider=='vontobel_private_document' else 2):
                 if state['requests']>=800:raise RuntimeError('Provider request budget exceeded')
                 if time.monotonic()>=state.get('forecast_deadline',float('inf')):raise RuntimeError('Dividend reporting request budget exceeded')
                 state['requests']+=1
                 try:
                     response=_original(self,method,url,**kwargs)
-                    # The official MiFIR download licence is independent of an
-                    # unavailable robots resource (RFC 9309 2.3.1.3). Do not turn
-                    # a robots-file 4xx into a false ban on the published files.
-                    # Actual data-resource denials and all rate limits still stop.
-                    unavailable_robots=provider=='stuttgart_delayed' and urlparse(str(url)).path=='/robots.txt' and response.status_code in {401,403,404}
-                    if response.status_code in {401,403,429,999} and not unavailable_robots:
+                    if response.status_code in {401,403,429,999}:
                         if provider not in state['restricted_providers']:state['restricted_providers'].append(provider)
-                    if 300<=response.status_code<400 and provider not in {'vontobel_private_document','stuttgart_delayed'}:
+                    if 300<=response.status_code<400 and provider!='vontobel_private_document':
                         raise RuntimeError('Provider redirect requires review')
                     return response
                 except timeout_types:
@@ -244,7 +239,9 @@ def install_derivatives(ns,config,synthetic=False):
                     from pulse.derivative_quotes import Collector
                     positions=ns.get('derivative_positions',pd.DataFrame())
                     isins=positions.loc[positions['position_status'].eq('ACTIVE'),'isin'].tolist() if not positions.empty else [isin]
-                    collector=Collector(isins=isins)
+                    from pulse.derivative_cache import QuoteCache
+                    directory=os.environ.get('FOLIOLENS_DERIVATIVE_CACHE_DIRECTORY')
+                    collector=Collector(isins=isins,cache=QuoteCache(directory) if directory else None)
                 evidence[isin]=collector.quote(isin)
             evaluation=timestamp(evidence.get(isin,{}).get('evaluated_at')) if replay_quotes is not None else None
             automatic=canonical_quote(evidence.get(isin,{}),now=evaluation)

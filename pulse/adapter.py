@@ -6,7 +6,7 @@ import pandas as pd
 from pulse.core import build_snapshot_data
 from pulse.scopes import availability, blocker_message
 
-MODEL_SCHEMA_VERSION = 8
+MODEL_SCHEMA_VERSION = 9
 
 @dataclass(frozen=True)
 class Metric:
@@ -205,6 +205,10 @@ def prepare(result, report_date=None, analysis_scope=None):
     periods = [r for r in result['period_performance'] if r.get('period_key') in {'1M','3M','YTD','1Y','MAX'} and r.get('available') is True] if not stock_blocked and history_ok and dividends_sound else []
     full_totals = dict(value=number(life.get('lifetime_current_tracked_open_value_eur')) if not blocked and dependencies['full_valued'] else None,
                        profit=number(life.get('lifetime_economic_profit_eur')) if not blocked and not income_blocked and dependencies['full_valued'] and life.get('lifetime_profit_status')=='OK' else None)
+    # Supplemental dated-bid estimate only. Never feeds a canonical metric,
+    # profit, return, ranking or availability status.
+    if not blocked and dependencies['stock_valued'] and dependencies['stock_value'] is not None and derivative_center['indicative_total'] is not None:
+        derivative_center['full_portfolio_estimate']=dependencies['stock_value']+derivative_center['indicative_total']
     from pulse.composition import composition
     from pulse.holding_performance import project_holdings
     composition_date=report_date

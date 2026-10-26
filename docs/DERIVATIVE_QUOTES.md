@@ -1,11 +1,23 @@
-# Derivative quotation evidence — development assessment
+# Lightweight derivative quotation evidence - development assessment
 
-Baseline: FolioLens Personal v1.0.11 (`01060eb`). Read-only quotation reference:
-Holy Grail V6.7.10 commit `1a557d24e0a7c1f224743a659c9de3620e01ebba`.
-The protected accounting reference remains V6.7.8, not the later collector.
-This branch is an unpromoted development build, not an approved stable release.
+Production remains FolioLens Personal v1.0.11 (`01060eb`). This is draft PR #4,
+not a promoted stable release. Holy Grail V6.7.10 (`1a557d24`) was inspected read-only
+for quotation architecture; accounting remains the protected V6.7.8 baseline.
 
-## Source audit and access decisions (26 October 2026)
+## Revised product policy
+
+Delayed or previous-weekday **bids** may support a separately labelled indicative
+estimate. Live executability is not required for that estimate. Exact ISIN, actual
+full timestamp/timezone, reviewed source, EUR currency and per-unit convention
+remain mandatory. A bid does **not** require an ask. Ask/last observations are
+never relabelled bids. Optional dated manual entry is unchanged.
+
+The Stuttgart MiFIR VHP collector is removed, not merely hidden behind a setting.
+Its worker destinations and Windows module import are removed too. No substitute
+exchange-wide dataset is downloaded. Old bulk captures are private historical
+evidence only and are not reused as a current source.
+
+## Source audit and access decisions
 
 | Candidate | Evidence and decision |
 | --- | --- |
@@ -13,7 +25,7 @@ This branch is an unpromoted development build, not an approved stable release.
 | Societe Generale issuer website | The [website's legal notice](https://www.sg-zertifikate.de/contentmgmt/media/13ihwnzp/legal_information_de-de.pdf) restricts electronic reproduction/caching without written permission. Not enabled. |
 | SG Markets SP API | [Documented API](https://shared.sgmarkets.com/sp-help-center-content/external-api-doc.html) requires SG Connect client credentials and serves bespoke products; it is not an established anonymous listed-warrant quote service. No credentials requested or execution API used. |
 | Vontobel German product documents | [Terms](https://markets.vontobel.com/de-de/nutzungsbedingungen), rights section, explicitly permit private noncommercial downloads/copies. The bounded personal adapter reads only the published document and exact FinancialProduct ISIN. This narrow private-copy basis does not establish hosted or streaming-API rights. The inspected product document has identity/underlying metadata but quote placeholders, without bid/ask/time evidence. Internal streaming APIs and browser scraping are not used. |
-| Stuttgart official delayed pre-trade files | [Official service](https://www.boerse-stuttgart.de/de-de/fuer-geschaeftspartner/reports/mifir-ii-delayed-data/) and its [download documentation](https://www.boerse-stuttgart.de/media/lfpd4xcs/verffentlichung-und-abruf-von-vor-und-nachhandelsdaten.pdf) explicitly provide free delayed pre-trade downloads. A real published file redirects to the exchange-issued CDN. An initial small-budget/line-by-line approach was inadequate. Buffered constant-memory streaming subsequently completed an approximately 252 MiB compressed / 2.68 GiB expanded file, including gzip CRC, in about ten seconds and found all seven requested ISINs. The observed JSON contract supplies exact ISIN, Bid/Ask, sizes, EUR currency and full UTC TransactionTime, but does not independently establish per-unit convention/current trading status. Its known 15-minute delay cannot become a current executable bid. |
+| Stuttgart official delayed pre-trade files | Previously investigated official MiFIR download. **Removed**: exchange-wide compressed/expanded payload is unsuitable for this application. No normal-run adapter, allowed worker destination or packaged bulk module remains. |
 | Frankfurt / Deutsche Boerse delayed service | [Official service](https://www.mds.deutsche-boerse.com/mds-en/real-time-data/Delayed-data) grants free noncommercial use of delayed files. Its separately listed Certificates and Warrants service is post-trade, which cannot substitute for bid prices. No validated current-bid adapter enabled. |
 | Stuttgart retail website | [Terms](https://www.boerse-stuttgart.de/de-de/legal/agb-und-disclaimer/) constrain ordinary retrieval and automated requests. Only the separately documented delayed file offering is integrated; retail price/search scraping is not. |
 | onvista | [Explicit written-permission requirement](https://hilfe.onvista.de/de/verstoss-gegen-nutzungsbedingungen) for automated requests. Rejected without permission. |
@@ -21,104 +33,112 @@ This branch is an unpromoted development build, not an approved stable release.
 | comdirect | [Terms](https://www.comdirect.de/cms/hilfe-service-nutzungsbedingungen.html) permit private noncommercial copying, but no explicit automated quotation API permission/contract was established. Not enabled under this assignment's stronger explicit-automation requirement for aggregator sources. |
 | Consorsbank / ARIVA | No explicit automated current-bid grant and supported interface established. [ARIVA terms](https://www.ariva.de/nutzungsbedingungen/) alone do not establish that grant. Not enabled. |
 
-The inaccessible Stuttgart `robots.txt` resource and the actual public download
-are distinct: a robots-resource 4xx is not a Disallow rule under
-[RFC 9309 section 2.3.1.3](https://www.rfc-editor.org/rfc/rfc9309.html#section-2.3.1.3).
-The documented public file was checked without identity/proxy/CAPTCHA changes.
-Its original redirect was followed only to the specific exchange-issued CDN.
-Actual source access denials/rate limits stop requests; no alternate identity,
-endpoint substitution or safety bypass is implemented. Robots permission alone
-is never interpreted as a market-data licence.
 
-## Architecture and strict valuation boundary
+Additional lightweight services investigated:
 
-`pulse/derivative_quotes.py` supplies immutable observations, explicit validation,
-private document transport and worker-local collection. `pulse/derivative_stuttgart.py`
-handles the official delayed file contract with bounded gzip processing. There
-are no new dependencies. Dynamic open ISINs come from the canonical derivative
-FIFO position frame; no portfolio identifiers are hardcoded or sent with quantities,
-transaction rows, costs, account information or event identifiers.
+- [Vontobel Instrument Market Data API](https://api-docs.deritrade.com/api/instrument-market-data/)
+  documents per-ISIN intraday/daily requests, including LastBidAsk. It requires
+  3ScaleExternal authorization; anonymous personal access and credentials were
+  not established. Its reference API independently requires Bearer authorization.
+  No guessed/internal website REST or streaming endpoint is used as a substitute.
+- One separately inspected public website JSON response (the same issuer's
+  `/api/v1/prices/{isin}/latest` route, under its private-copy terms and Allow
+  robots rule) returned a small price/time/size object. It did **not** supply
+  response ISIN, currency or quotation convention. This is an exploratory access
+  observation, not a supported API contract or validation of EUR-per-unit bids.
+  It is not enabled in normal analysis; no missing fields are inferred.
+- [Euronext Web Services](https://www.euronext.com/en/data/how-access-market-data/web-services)
+  offers selected quotes/reference data through a client service. No existing
+  personal subscription/access or exact-product coverage was established. Nothing
+  was purchased, registered or enabled.
+- [Stuttgart market data](https://www.boerse-stuttgart.de/de-de/fuer-geschaeftspartner/zugang-zu-boersendaten/marktdaten/)
+  advertises real-time/delayed/EOD packages through its data team, not an established
+  anonymous ISIN-level contract available to this application.
+- [gettex delayed data](https://www.gettex.de/handel/delayed-data/) permits natural
+  persons' private use but exposes MIC-wide files. That is not a lightweight
+  replacement. Personal vendor services require a separately arranged service.
 
-The current private-copy adapters **do not produce verified current bids**.
-The valuation boundary is fully implemented/tested for future verified provider
-evidence, but the present Vontobel document parser intentionally cannot promote
-an undocumented streaming response into an accepted quotation.
+No reviewed anonymous lightweight source currently supplies a usable dated
+EUR-per-unit bid for the controlled seven-position acceptance. Published Vontobel
+HTML may supply exact instrument metadata but its observed quote box contains
+placeholders without full price timestamps. Missing evidence remains unavailable.
+No claims of impossibility or blanket prohibition are made about providers that
+could supply an authorized client contract later.
 
-An eligible current observation requires an exact valid ISIN, reviewed HTTPS
-source, explicit EUR/per-unit convention, actual bid, full date/time/UTC offset,
-no future observation, at most 180 seconds of age, independently OPEN market
-state, zero declared delay, valid optional sizes and a noninverted spread.
-Spreads exceeding 50% require review. Weekends, closures, expiry and knockout
-states cannot become current quotes. Ask-only, last-only, delayed and unknown-time
-evidence never complete canonical valuation. HTTP retrieval time is not quote time.
+## Boundaries, budget and cache
 
-Automatic accepted bids precede the existing optional manual observations. The
-manual seven-day rule, graphical form, exact-activity binding and DPAPI store
-remain unchanged. Missing/stale/unsupported automatic data remains unavailable.
-No cost, old execution or zero fallback is introduced. The canonical engine's
-126 protected definitions and every FIFO/return/cash-flow definition are unchanged.
+`pulse/derivative_quotes.py` retains the provider-independent contract and strict
+current-bid validator. `validate_indicative` separately reuses structural checks,
+accepts dated bids observed today or no earlier than the previous weekday in
+Europe/Berlin, and permits delayed/closed-market evidence. Weekends use Friday;
+there is no unverified holiday extension. Older observations are explicitly
+expired. Actual quote time is never replaced by download/cache time. Explicit
+expired/knocked-out/suspended states, invalid prices, unverified units/currency,
+wrong ISINs and inverted/implausible spreads are rejected.
 
-Requests are serial, transparent, HTTPS-only and fixed-domain/path constrained.
-Private documents have a 25-second / 20-request worker-local budget, 5-second
-request bounds, response limits and 250ms spacing. The shared delayed-file read
-has a 40-second / five-request budget, 512 MiB compressed / 8 GiB expanded limits
-and 8192-byte requested-record/carry limits. The complete universe is streamed
-through small buffers, never retained in memory or written into a portfolio cache.
-Incomplete scans or failed gzip CRC are discarded. Restricted sources
-are not retried. Automatic observations are cached only within one worker;
-the valuation boundary revalidates freshness before use. Captured controlled
-replays retain the recorded observation and evaluation time, never a fresh date.
+The serial lightweight transport has an **8-second collection budget**, 12-request
+ceiling, at most 1 second per connect/read interval, 250 ms spacing, **384 KiB per
+document** and **1.5 MiB total consumed-body** limits. Oversized Content-Length
+is refused before reading the body. Timeouts are not retried by the enclosing
+worker for this provider. Deadlines/denials/rate limits stop collection; no proxy,
+client-identity switch, browser bypass, credentials or new dependencies are used.
+The target is approximately ten seconds or less of additional normal-run work.
 
-Only personal, non-synthetic analyses receive the worker collection gate. Owner-
-hosted/public modes cannot inherit it or private saved quotations. Synthetic
-inputs and replay comparisons make no quote requests. Source raw snippets stay
-in private run/capture evidence; HTML/PDF exports use explicit display fields and
-contain no raw provider pages, signed download capabilities or transaction IDs.
+`pulse/derivative_cache.py` stores small exact-ISIN observations, source, quote
+type/time, scoped metadata and sanitized attempt diagnostics under the local
+configured personal profile's `quote-cache` directory. Windows uses existing
+user-bound DPAPI encryption and atomic writes with a nonblocking cross-process
+write lock. Raw documents, transactions, costs, quantities, account/event IDs and
+portfolio results are excluded. Cache failures do not block accounting. A cache
+lock left by a hard crash disables writes safely and surfaces a diagnostic.
 
-## Labels and reporting
+One attempt per weekday is reused, including unsuccessful attempts, to avoid
+repeated requests during normal analyses. Cached usable quotes are revalidated
+on every use; fresh download time never resets their age. At a new weekday the
+provider is attempted again. A previous still-valid observation can survive that
+attempt's failure with its original timestamp and explicit cache provenance.
+Weekend reads do not repeatedly refresh Friday's record. No cache is shared
+across OS users or hosted sessions, and hosted/synthetic workers cannot inherit
+the cache path or collection gate. Clear removes analysis/download state but
+intentionally retains this disclosed local market cache and prior private profile.
 
-Underlying names come from explicit same-ISIN transaction descriptions or exact-
-ISIN verified product metadata. Conflicting/missing names retain the original
-label. Strike formatting is display-only. Historical turbo financing levels are
-omitted; Open End is used only when the transaction/product evidence says so.
-Missing expiry is explicitly unavailable, never copied from illustrative owner
-examples. Canonical ISIN, quantities, values, positions and rankings do not change.
+## Presentation and accounting
 
-The expandable Quote Center shows active/automatic/indicative/missing coverage,
-instrument labels, separate bid/ask, currency/unit qualification, source/time,
-quantity/value and sanitized failures. The manual dropdown shows full descriptive
-labels plus a wrapping selected-label caption. Offline HTML shares this prepared
-model and escaping/CSP; the single-page PDF adds only a compact qualification.
+The prepared model exposes validated indicative position estimates, coverage,
+known subtotal, complete derivative indicative total (only with all active
+positions covered), and a separate full-portfolio estimate with cash excluded.
+The latter additionally requires complete canonical accounting and stock/fund
+valuations. Missing positions produce a labelled partial subtotal, never a full
+estimate. Current/manual values and validated dated automatic bids can coexist.
+These supplementary figures feed no headline metric, return, FIFO, ranking,
+canonical profit or availability status. The eight existing headline metrics and
+126 retained canonical definitions remain unchanged.
 
-## Production decision and remaining prerequisites
+Streamlit, offline HTML and the one-page PDF use this same prepared estimate.
+Source, actual timestamps, bid/ask types, cache status and limitations remain
+visible in the quote center. The optional manual form and descriptive labels are
+preserved. Generic Windows development packages contain no private cache/profile
+or acceptance input. Production v1.0.11, its shortcut and rollback remain untouched.
 
-Do not merge, tag, publish or promote this branch merely because mock-provider
-tests pass. v1.0.11 remains the installed production application. A stable v1.0.12
-requires a genuinely supported permitted source that supplies exact-ISIN current
-bid timestamps, currency, quotation convention and relevant market status within
-the worker's resource budget, followed by controlled real-data and installed
-Windows acceptance. An authorized targeted issuer feed is preferable to bulk
-downloads. Accepting delayed/unknown-unit data as current liquidation prices,
-reusing Holy Grail's ask/last fallback or increasing budgets without evidence is
-not a safe resolution.
+## Validation and promotion
 
-## Validation recorded on this development branch
+Tests cover bid-only delayed/closing observations, wrong instruments/types/units,
+future/expired dates, conservative weekend handling, daily and negative caching,
+cache corruption/isolation/expiry, valid prior-day fallback, blocked bulk hosts,
+small response limits, mixed/partial estimates and unchanged canonical results.
+Private development acceptance records live lightweight request time, consumed
+HTTP body bytes, per-ISIN diagnostics, and a second cached analysis. Controlled
+stock/FX inputs remain separate from live derivative requests.
 
-The complete local suite passes **403 tests**, retaining the 328-test production
-baseline. A final targeted quote/profile/UI suite passes 109 tests. Nine original
-synthetic V6.7.8 comparisons match exactly. Controlled real-export comparison
-matches **36 unrounded result fields**, all eight metrics, holdings, income and
-diagnostics at identical captured market/FX/event inputs. A separate replay of
-the v1.0.11 capture preserves the established financial dictionaries and figures.
+Keep PR #4 draft. Do not merge, publish v1.0.12 or change the installed shortcut
+until the owner reviews the development results and a usable permitted source is
+actually established. Mock-provider tests validate interfaces, not live coverage.
 
-Live collection under the application's worker HTTP controls obtained seven
-exact-ISIN indicative exchange observations and zero acceptable current bids.
-The source's private-copy/robots distinction and bounded listing timeout were
-tested without changing client identity or bypassing actual data-resource denials.
-The existing private profile is preserved. The supplied broker observations are
-historical and have no precise comparable timestamp; no contemporaneous accuracy
-claim is made. Private per-instrument captures and comparisons remain outside Git.
-
-Generic development Windows packaging passes frozen worker/module, SSL, PDF/HTML,
-CRC, file-manifest, SHA-256 and private-record scans without Python on PATH. This
-is development validation, not a production installation or stable release.
+Recorded validation on this revision: 421 full-suite tests, 125 focused tests,
+nine exact canonical synthetic scenarios, and 36 exact unrounded private-export
+comparison fields. The controlled seven-instrument lightweight collection took
+2.860 seconds, consumed 845,684 HTTP response-body bytes in 12 requests, and
+obtained zero usable bids. Its cached repetition took 0.015 seconds and made no
+HTTP requests. These are measured development observations, not performance
+guarantees or a claim of usable live coverage. TLS/headers are not counted as body
+bytes. Private price/FX/event inputs and per-instrument evidence are not published.

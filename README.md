@@ -4,7 +4,7 @@ Your investments, in focus.
 
 Development branch: automatic derivative quotation evidence is under validation.
 The installed/released stable application remains v1.0.11. The current authorized
-document/delayed-file adapters have not established a reliable current-bid feed;
+lightweight document adapter has not established a usable dated-bid feed;
 this is not a promoted v1.0.12 release. See [provider access, validation and
 remaining prerequisites](docs/DERIVATIVE_QUOTES.md).
 
