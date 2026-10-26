@@ -208,9 +208,9 @@ with heading:
     tx = snap['latest_transaction_date']
     st.caption(f"{'SYNTHETIC DEMO · fabricated transactions and market prices · ' if model['raw']['synthetic'] else ''}Transactions to {tx:%d %b %Y}" if tx else 'Transaction cutoff unavailable')
 with download_pdf:
-    st.download_button('Download PDF Report',st.session_state['pdf'],file_name='FolioLens_Summary.pdf',mime='application/pdf',use_container_width=True)
+    st.download_button('Download PDF Report',st.session_state['pdf'],file_name='FolioLens_Summary.pdf',mime='application/pdf',use_container_width=True,on_click='ignore')
 with download_html:
-    st.download_button('Download HTML Report',st.session_state['html'],file_name='FolioLens_Report.html',mime='text/html',use_container_width=True)
+    st.download_button('Download HTML Report',st.session_state['html'],file_name='FolioLens_Report.html',mime='text/html',use_container_width=True,on_click='ignore')
 with st.expander('Data health and coverage'):
     if model['issues']:
         for issue in model['issues']:st.text('• '+issue)

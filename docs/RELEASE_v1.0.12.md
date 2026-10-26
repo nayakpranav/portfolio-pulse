@@ -15,6 +15,7 @@ PR #4 is a read-only label reference; its quotation system is not integrated.
 - PDF retains one landscape A4 page, adding only concise manual-coverage text.
 - Stocks/funds and full-portfolio scopes retain the same canonical raw result;
   changing scope regenerates both downloads without running the engine again.
+  Download clicks themselves are frontend-only and do not request a page rerun.
 
 The existing manual form, seven-calendar-day freshness, exact-activity-bound
 Windows-user encryption and profile location are unchanged. With valid manual

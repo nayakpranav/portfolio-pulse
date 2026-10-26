@@ -96,4 +96,3 @@ def table_rows(coverage):
         'Observed':r['observed'] or 'Unavailable','Source':r['source'] or 'Unavailable',
         'Position value':f"€{r['value']:,.2f}" if r['value'] is not None else 'Unavailable',
         'Status':r['status'].replace('_',' ').lower()} for r in coverage['rows']]
-
