@@ -32,12 +32,12 @@ if getattr(_synthetic,'SYNTHETIC_SCHEMA_VERSION',0)!=2:importlib.reload(_synthet
 from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
-if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=7:importlib.reload(_adapter)
-if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=9:importlib.reload(_pdf)
+if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=8:importlib.reload(_adapter)
+if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=10:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 import pulse.html_report as _html_report
-if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=8:importlib.reload(_html_report)
+if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=9:importlib.reload(_html_report)
 from pulse.html_report import html_report, HTML_SCHEMA_VERSION
 from pulse.reporting import HOLDING_CSS, holding_cards, table_frame, HOLDING_EXPLANATION
 from pulse.composition import COMPOSITION_CSS, composition_panel
@@ -223,14 +223,23 @@ with st.expander('Data health and coverage'):
     if model['history_evidence']['rows']:
         st.dataframe(pd.DataFrame(model['history_evidence']['rows']),hide_index=True,use_container_width=True)
     if model['dependencies']['missing_stock']:st.warning('Holdings rankings cover only valued stocks/funds; unpriced stock/fund positions are omitted. See all current holdings below.')
+if upload_enabled and not model['raw']['synthetic'] and model['derivative_quotes']['active']:
+    with st.expander('Derivative Quote Center'):
+        from pulse.derivative_reporting import quote_table_rows, quote_summary
+        st.write(quote_summary(model['derivative_quotes']))
+        st.caption(model['derivative_quotes']['note'])
+        st.dataframe(pd.DataFrame(quote_table_rows(model['derivative_quotes'])),hide_index=True,use_container_width=True)
+        st.caption('Automatic document requests transmit only instrument ISINs. Provider failures do not block valid stock/fund analysis. Reports preserve observation times; they do not refresh quotations offline.')
 if upload_enabled and not model['raw']['synthetic'] and model['dependencies']['missing_derivative']:
     with st.expander('Advanced: optional dated derivative valuations'):
         from pulse.valuations import today, quote_status, remember_quote, MAX_QUOTE_AGE_DAYS
-        st.caption(f'Optional only. Valid stock/fund results do not require this. No automatic derivative scraper is enabled. Observations must be positive EUR per unit, dated within {MAX_QUOTE_AGE_DAYS} calendar days; never enter total position value, acquisition cost or an old execution price.')
+        st.caption(f'Optional fallback. Valid stock/fund results do not require this. Automatic document retrieval may return no verifiable bid; see Derivative Quote Center. Observations must be positive EUR per unit, dated within {MAX_QUOTE_AGE_DAYS} calendar days; never enter total position value, acquisition cost or an old execution price.')
         positions=model['raw'].get('active_derivatives',[])
         by_isin={r['isin']:r for r in positions}
         if by_isin and uploaded is not None:
-            selected=st.selectbox('Derivative to value',list(by_isin),format_func=lambda isin:by_isin[isin]['security_name']+' · '+isin,key='manual_instrument')
+            labels={r['isin']:r['label'] for r in model['derivative_quotes']['rows']}
+            selected=st.selectbox('Derivative to value',list(by_isin),format_func=lambda isin:labels.get(isin,by_isin[isin]['security_name']+' · '+isin),key='manual_instrument')
+            st.caption(labels.get(selected,selected))
             previous=(session_config or {}).get('derivative_quotes',{}).get(selected,{})
             st.caption('Current units: '+str(by_isin[selected].get('current_quantity','Unavailable'))+' · valuation: '+str(by_isin[selected].get('quote_status','Unavailable')).replace('_',' ').lower())
             with st.form('manual_quote_form_'+selected):

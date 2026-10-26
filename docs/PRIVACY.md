@@ -38,6 +38,17 @@ Only public identification/price inputs are sent; transaction exports, account
 identifiers, private transaction UUIDs and reports are never request payloads.
 Unapproved non-Yahoo derivative scrapers remain disabled.
 
+On the unpromoted derivative-evidence branch, personal-only analyses may also
+request exact public ISIN document copies from the reviewed Vontobel website and
+the official Stuttgart delayed-file offering/CDN. The latter is a public bulk
+market file; the desired ISINs are filtered locally, without sending holdings,
+quantities or broker records. The streamed universe is not retained; only scoped
+observations/diagnostics enter the private run. Its full CRC, byte and wall-time
+limits must pass. Delayed/unknown-unit data remains unvalued. No automatic quote
+record is written into the encrypted manual-evidence profile. Public and owner-
+hosted modes cannot inherit the personal worker gate. See
+[the provider access assessment](DERIVATIVE_QUOTES.md).
+
 ## Isolation and cleanup
 
 Private input/config/results and all worker/provider caches stay in the analysis

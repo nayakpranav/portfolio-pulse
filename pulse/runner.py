@@ -133,6 +133,10 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=300, engine_
             work.joinpath('replay.json').write_text(json.dumps(replay),encoding='utf-8')
             env['FOLIOLENS_REPLAY_PATH']=str(work/'replay.json')
         env['FOLIOLENS_CAPTURE']='1' if capture else '0'
+        from pulse.mode import mode
+        # This attestation is derived here, not inherited from arbitrary parent
+        # variables. Public/owner-hosted and synthetic workers never collect it.
+        env['FOLIOLENS_AUTO_DERIVATIVE_DOCUMENTS']='1' if prices is None and mode()=='personal' and uploads_enabled() else '0'
         env['PULSE_BENCHMARK_DISABLED'] = '1' if benchmark is None else '0'
         if prices is not None:
             work.joinpath('prices.json').write_text(json.dumps(prices))

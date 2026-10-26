@@ -114,6 +114,7 @@ def write_results(ns):
     result['provider_diagnostics']=ns.get('_foliolens_transport',{})
     result['fx_observations']=ns.get('_foliolens_fx',{})
     result['active_derivatives']=serialize(ns.get('active_derivatives',pd.DataFrame()))
+    result['derivative_quote_evidence']=serialize(ns.get('_foliolens_derivative_quotes',{}))
     from pulse.valuations import diagnostic_rows
     result['valuation_diagnostics']=diagnostic_rows(result['valuation_diagnostics'],result['active_derivatives'])
     result['historical_price_audit']=serialize(ns.get('historical_ticker_audit',pd.DataFrame()).drop(columns=['error'],errors='ignore'))
@@ -138,7 +139,7 @@ def write_results(ns):
         # or leak a provider exception containing private holdings.
         result['forward_dividends']={'status':'UNAVAILABLE','diagnostic':'Canonical dividend reporting inputs could not be validated.'}
     if os.environ.get('FOLIOLENS_CAPTURE')=='1':
-        result['market_capture']={'calls':ns.get('_foliolens_capture',{}),'benchmark':ns.get('_foliolens_benchmark',{})}
+        result['market_capture']={'calls':ns.get('_foliolens_capture',{}),'benchmark':ns.get('_foliolens_benchmark',{}),'derivative_quotes':ns.get('_foliolens_derivative_quotes',{})}
     Path(os.environ['PULSE_RESULT_PATH']).write_text(json.dumps(result,allow_nan=False),encoding='utf-8')
 
 

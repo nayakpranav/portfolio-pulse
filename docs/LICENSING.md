@@ -53,7 +53,11 @@ retrieval/display. The canonical multi-provider code remains in the retained sou
 but its scraping is disabled. The active alternatives are Yahoo diagnostics and
 explicit dated manual valuations. No paid data subscriptions are purchased.
 
-Only Yahoo/yfinance and the canonical [OpenFIGI identification API](https://www.openfigi.com/api)
-are permitted network destinations for personal enrichment. Yahoo also supplies FX.
+The v1.0.11 stable release permits Yahoo/yfinance and the canonical
+[OpenFIGI identification API](https://www.openfigi.com/api) for personal enrichment.
+The unpromoted derivative-evidence branch additionally confines personal-only
+private document/file requests to the reviewed Vontobel and official Stuttgart
+delayed-data destinations. It does not establish a verified current-bid feed or
+hosted data rights. See [the access assessment](DERIVATIVE_QUOTES.md). Yahoo supplies FX.
 Provider restrictions, rate limits and authorization failures stop requests;
 there is no CAPTCHA, proxy, alternate-identity or access-control workaround.
