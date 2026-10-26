@@ -166,6 +166,7 @@ def test_report_model_excludes_raw_quotes_and_escapes_labels():
     raw['synthetic']=False;target=raw['active_derivatives'][0]['isin']
     raw['derivative_quote_evidence']={target:dict(attempts=[dict(raw_evidence='PRIVATE_PROVIDER_BODY')],metadata=dict(isin=target,identity='EXACT_ISIN',underlying='<img src=x onerror=alert(1)>'),status='NO_QUOTE')}
     model=prepare(raw,date(2026,10,26));before=deepcopy(raw)
+    assert any('&lt;img' not in issue and '<img' in issue for issue in model['issues'] if 'require derivative valuations' in issue)
     text=html_report(model).decode();pdf=PdfReader(BytesIO(summary_pdf(model)))
     assert 'Derivative Quote Center' in text and 'PRIVATE_PROVIDER_BODY' not in text and '<img src=x' not in text
     assert '&lt;img' in text and len(pdf.pages)==1 and raw==before

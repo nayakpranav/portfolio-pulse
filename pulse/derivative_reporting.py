@@ -2,6 +2,7 @@
 from datetime import date
 import math
 import re
+from pulse.derivative_quotes import finite_positive
 
 
 def _text(value,limit=200):
@@ -68,11 +69,11 @@ def quote_center(raw):
         try:value=float(quantity)*float(price);value=value if math.isfinite(value) else None
         except (ValueError,TypeError):value=None
         rows.append(dict(isin=isin,label=derivative_label(position,raw.get('derivative_ledger',[]),audit.get('metadata')),
-                         quantity=quantity,bid=observation.get('bid'),ask=observation.get('ask'),source=observation.get('provider',''),
+                         quantity=quantity,bid=finite_positive(observation.get('bid')),ask=finite_positive(observation.get('ask')),source=observation.get('provider',''),
                          observed_at=observation.get('observed_at',''),freshness=observation.get('freshness','UNKNOWN'),price_type=observation.get('price_type','NONE'),
                          currency=observation.get('currency',''),denomination=observation.get('denomination',''),
                          status=position.get('quote_status','UNAVAILABLE'),value=value,reason=audit.get('status','No captured automatic quote evidence'),
-                         automatic=bool(selected and selected.get('accepted')),indicative=bool(not selected and observation.get('identity')=='EXACT_ISIN' and observation.get('currency')=='EUR' and any(isinstance(observation.get(key),(int,float)) and math.isfinite(observation[key]) and observation[key]>0 for key in ('bid','ask','last')))))
+                         automatic=bool(selected and selected.get('accepted')),indicative=bool(not selected and observation.get('identity')=='EXACT_ISIN' and observation.get('currency')=='EUR' and any(finite_positive(observation.get(key)) is not None for key in ('bid','ask','last')))))
     automatic=sum(r['automatic'] for r in rows);indicative=sum(r['indicative'] for r in rows);missing=sum(r['value'] is None for r in rows)
     return dict(rows=rows,active=len(rows),automatic=automatic,indicative=indicative,missing=missing,
                 note='Verified automatic valuations require a recent exact-ISIN EUR-per-unit bid with a full timestamp. Indicative observations can be delayed, stale or have unverified units; check each qualification. Ask, last, delayed, closed-market and unknown-time observations do not complete valuation. Manual observations remain optional and separately labelled.')

@@ -185,3 +185,11 @@ def test_display_counts_partial_manual_coverage_and_no_raw_evidence():
     assert center['rows'][0]['value']==3 and center['rows'][1]['value'] is None
     assert raw==before and 'PRIVATE_RAW_RESPONSE' not in json.dumps(quote_table_rows(center))
     assert quote_center(dict(active_derivatives=[]))['active']==0
+
+
+@pytest.mark.parametrize('placeholder',[0,-1,True,float('nan')])
+def test_unusable_provider_placeholders_are_not_displayed_as_zero_quotes(placeholder):
+    raw=dict(active_derivatives=[dict(position(),live_price_eur=None)],derivative_quote_evidence={ISIN:dict(attempts=[dict(identity='EXACT_ISIN',currency='EUR',bid=placeholder,ask=placeholder)])})
+    center=quote_center(raw);row=quote_table_rows(center)[0]
+    assert row['Bid']=='Unavailable' and row['Ask']=='Unavailable'
+    assert center['indicative']==0 and center['missing']==1

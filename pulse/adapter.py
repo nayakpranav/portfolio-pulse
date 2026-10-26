@@ -34,6 +34,9 @@ def number(value):
 def prepare(result, report_date=None, analysis_scope=None):
     report_date = report_date or date.today()
     complete_result=result
+    from pulse.derivative_reporting import quote_center
+    derivative_center=quote_center(complete_result)
+    derivative_labels={row['isin']:row['label'] for row in derivative_center['rows']}
     partial=result.get('unaffected_scope')
     # Preserve the full result for auditing and scope toggling. Only explicitly
     # localized accounting failures may supply a separate canonical projection.
@@ -147,7 +150,7 @@ def prepare(result, report_date=None, analysis_scope=None):
         issues.append(f'{missing} open position(s) lack a required reliable valuation.')
         derivative_gaps=[r for r in result['valuation_diagnostics'] if r.get('valuation_status')=='BLOCKING' and r.get('instrument_type')=='DERIVATIVE']
         if derivative_gaps:
-            issues.append('Tracked value and lifetime profit require derivative valuations: '+', '.join(str(r.get('security_name','Derivative')) for r in derivative_gaps[:3])+'.')
+            issues.append('Tracked value and lifetime profit require derivative valuations: '+', '.join(derivative_labels.get(r.get('isin'),str(r.get('security_name','Derivative'))) for r in derivative_gaps[:3])+'.')
     valued_quotes=[r.get('quote_date') for r in result['valuation_diagnostics'] if r.get('valuation_status')=='VALUED']
     parsed_quotes=pd.to_datetime(valued_quotes,errors='coerce',utc=True)
     if len(parsed_quotes) and parsed_quotes.isna().any():
@@ -188,7 +191,8 @@ def prepare(result, report_date=None, analysis_scope=None):
             selected = [r for r in contributors if (number(r['economic_contribution_eur']) > 0 if positive else number(r['economic_contribution_eur']) < 0)]
             if selected:
                 r = (max if positive else min)(selected,key=lambda x:x['economic_contribution_eur'])
-                insights.append(f"{r['security_name']} is the largest {'positive lifetime contributor' if positive else 'lifetime detractor'} at €{r['economic_contribution_eur']:,.2f}.")
+                display_name=derivative_labels.get(r.get('isin'),r['security_name']) if r.get('instrument_type')=='DERIVATIVE' else r['security_name']
+                insights.append(f"{display_name} is the largest {'positive lifetime contributor' if positive else 'lifetime detractor'} at €{r['economic_contribution_eur']:,.2f}.")
     if by_key['income'].value is not None:
         lead = 'Dividends' if snapshot['ytd_dividends'] >= snapshot['ytd_interest'] else 'Interest'
         insights.append(f"Recognized {snapshot['year']} net investment income is €{snapshot['ytd_income']:,.2f}. {lead} account for the larger share.")
@@ -215,8 +219,7 @@ def prepare(result, report_date=None, analysis_scope=None):
     risk=drawdown(nav,historical,returns_scope,not stock_blocked and history_ok and dividends_sound)
     forecast=forward_dividends(complete_result,composition_date,not stock_blocked and dividends_sound and not partial)
     from pulse.evidence import historical_evidence, dividend_evidence
-    from pulse.derivative_reporting import quote_center
-    return dict(derivative_quotes=quote_center(complete_result),history_evidence=historical_evidence(result),dividend_evidence=dividend_evidence(complete_result),drawdown=risk,forward_dividends=forecast,composition=composition_data,metrics=metrics,by_key=by_key,snapshot=snapshot,nav=nav,issues=list(dict.fromkeys(issues)),
+    return dict(derivative_quotes=derivative_center,history_evidence=historical_evidence(result),dividend_evidence=dividend_evidence(complete_result),drawdown=risk,forward_dividends=forecast,composition=composition_data,metrics=metrics,by_key=by_key,snapshot=snapshot,nav=nav,issues=list(dict.fromkeys(issues)),
                 health='Review required' if blocked or income_blocked else 'Partial' if issues else 'Complete',
                 insights=insights[:5],periods=periods,raw=complete_result,valuation_missing=missing,
                 analysis_scope=analysis_scope,scope_label='Unaffected stocks & funds (partial)' if stock_scope and partial else 'Stocks & funds' if stock_scope else 'Full portfolio',
