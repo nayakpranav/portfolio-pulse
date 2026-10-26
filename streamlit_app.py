@@ -32,12 +32,12 @@ if getattr(_synthetic,'SYNTHETIC_SCHEMA_VERSION',0)!=2:importlib.reload(_synthet
 from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
-if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=7:importlib.reload(_adapter)
-if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=9:importlib.reload(_pdf)
+if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=8:importlib.reload(_adapter)
+if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=10:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 import pulse.html_report as _html_report
-if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=8:importlib.reload(_html_report)
+if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=9:importlib.reload(_html_report)
 from pulse.html_report import html_report, HTML_SCHEMA_VERSION
 from pulse.reporting import HOLDING_CSS, holding_cards, table_frame, HOLDING_EXPLANATION
 from pulse.composition import COMPOSITION_CSS, composition_panel
@@ -201,12 +201,16 @@ snap = model['snapshot']
 heading,download_pdf,download_html = st.columns([2,1,1])
 with heading:
     st.markdown(f'**Data health · {model["health"]}**')
+    st.caption(model['valuation_summary'])
+    if model['manual_derivatives']['active']:
+        from pulse.derivative_display import manual_summary
+        st.caption(manual_summary(model['manual_derivatives']))
     tx = snap['latest_transaction_date']
     st.caption(f"{'SYNTHETIC DEMO · fabricated transactions and market prices · ' if model['raw']['synthetic'] else ''}Transactions to {tx:%d %b %Y}" if tx else 'Transaction cutoff unavailable')
 with download_pdf:
-    st.download_button('Download PDF Report',st.session_state['pdf'],file_name='FolioLens_Summary.pdf',mime='application/pdf',use_container_width=True)
+    st.download_button('Download PDF Report',st.session_state['pdf'],file_name='FolioLens_Summary.pdf',mime='application/pdf',use_container_width=True,on_click='ignore')
 with download_html:
-    st.download_button('Download HTML Report',st.session_state['html'],file_name='FolioLens_Report.html',mime='text/html',use_container_width=True)
+    st.download_button('Download HTML Report',st.session_state['html'],file_name='FolioLens_Report.html',mime='text/html',use_container_width=True,on_click='ignore')
 with st.expander('Data health and coverage'):
     if model['issues']:
         for issue in model['issues']:st.text('• '+issue)
@@ -230,7 +234,9 @@ if upload_enabled and not model['raw']['synthetic'] and model['dependencies']['m
         positions=model['raw'].get('active_derivatives',[])
         by_isin={r['isin']:r for r in positions}
         if by_isin and uploaded is not None:
-            selected=st.selectbox('Derivative to value',list(by_isin),format_func=lambda isin:by_isin[isin]['security_name']+' · '+isin,key='manual_instrument')
+            labels={r['isin']:r['name'] for r in model['manual_derivatives']['rows']}
+            selected=st.selectbox('Derivative to value',list(by_isin),format_func=lambda isin:labels.get(isin,by_isin[isin]['security_name']+' · '+isin),key='manual_instrument')
+            st.text(labels.get(selected,selected))
             previous=(session_config or {}).get('derivative_quotes',{}).get(selected,{})
             st.caption('Current units: '+str(by_isin[selected].get('current_quantity','Unavailable'))+' · valuation: '+str(by_isin[selected].get('quote_status','Unavailable')).replace('_',' ').lower())
             with st.form('manual_quote_form_'+selected):
