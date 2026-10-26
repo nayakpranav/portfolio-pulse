@@ -58,10 +58,11 @@ data blocks TWR; canonical low-confidence fallback pricing is explicitly disclos
 Optional sector-metadata warnings are omitted because sector analytics are not
 part of FolioLens's displayed scope.
 
-Personal mode retains Yahoo derivative identity diagnostics and supports explicit
-export-bound, dated manual EUR valuations. Low-confidence generic probes are not
-accepted as current prices. Other derivative scrapers and forward-dividend
-enrichment remain disabled. Closed derivative accounting remains included. An
+Personal mode supports recent, dated manual EUR-per-unit observations. Unverifiable
+generic derivative probes and other derivative scrapers are disabled. The separate
+canonical forward-dividend known estimate is enabled with coverage, reference date,
+observed retention and zero-growth qualifications; recognized income is unchanged.
+Closed derivative accounting remains included. An
 open unquoted derivative makes dependent totals unavailable; it is not zero. Net
 reinvestment income and basis are still obtained from the canonical CSV-leg
 matcher; missing externally reconciled gross tax detail is not invented.

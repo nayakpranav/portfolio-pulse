@@ -98,11 +98,12 @@ def fake_namespace():
     index=pd.bdate_range('2025-01-06','2026-09-30')
     raw=pd.DataFrame({'Close':100.,'Adj Close':102.},index=index)
     frame=raw.rename(columns={'Close':'close_native','Adj Close':'adjusted_close_native'})
-    provider=SimpleNamespace(info={'symbol':'SPY','longName':'Resolved Test ETF','quoteType':'ETF','currency':'USD'},fast_info={'currency':'USD'},history=lambda **kw:raw)
+    current_fx=pd.DataFrame({'Close':[.9]},index=[pd.Timestamp.today().normalize()])
+    provider=SimpleNamespace(info={'symbol':'SPY','longName':'Resolved Test ETF','quoteType':'ETF','currency':'USD'},fast_info={'currency':'USD'},history=lambda **kw:raw if 'start' in kw else current_fx)
     return {'BENCHMARK_NAME':'SPY','BENCHMARK_TICKER':'SPY','yf':SimpleNamespace(Ticker=lambda ticker:provider),
         'requests':SimpleNamespace(sessions=SimpleNamespace(Session=type('S',(),{'request':lambda *a:None}))),
         'prefetch_openfigi_identities':lambda x:None,'find_best_yahoo_ticker':lambda *a:{'ticker':'TEST','match_status':'EXACT'},
-        'fetch_latest_yahoo_price':lambda ticker:{'price_native':100.,'currency':'USD','price_date':'2026-09-30','status':'OK'},
+        'fetch_latest_yahoo_price':lambda ticker:{'price_native':100.,'currency':'USD','price_date':str(pd.Timestamp.today().date()),'status':'OK'},
         'get_fx_to_eur':lambda currency:.9,'_fetch_yahoo_history':lambda *a:(frame,'USD','OK',''),
         '_normalize_yahoo_history':lambda value:frame,'_normalize_currency_for_history':lambda currency:(currency,1)}
 

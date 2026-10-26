@@ -84,6 +84,11 @@ historical TWR and benchmark PME retain their established definitions.
 
 ## Verify
 
+The personal reliability development branch adds optional graphical dated
+valuation evidence and inspectable historical/dividend coverage. Its independent
+QuantStats validator is developer-only; runtime dependencies and accounting are
+unchanged. [Engineering assessment and integration decisions](docs/ENGINEERING_ASSESSMENT_2026-10-26.md).
+
 ```sh
 python -m pip install -r requirements-dev.txt
 python -m pytest -q

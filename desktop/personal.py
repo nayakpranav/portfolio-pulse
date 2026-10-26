@@ -11,7 +11,7 @@ import urllib.request
 import webbrowser
 
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parents[1]))
-VERSION='1.0.10'
+VERSION='1.0.10-dev.20261026'
 
 def free_port():
     with socket.socket() as sock:
@@ -114,13 +114,17 @@ def main():
         return
     if len(sys.argv)>1 and sys.argv[1]=='--self-test':
         import json
+        import ssl
+        import altair
+        context=ssl.create_default_context()
+        assert context.check_hostname and context.verify_mode==ssl.CERT_REQUIRED
         from pulse.runner import run_analysis
         from pulse.synthetic import fixture
         from pulse.adapter import prepare
         from pulse.pdf import summary_pdf
         from pulse.html_report import html_report
         data,prices=fixture();model=prepare(run_analysis(data,prices=prices))
-        report={'synthetic_worker':True,'metrics':len(model['metrics']),'pdf':summary_pdf(model).startswith(b'%PDF'),'html':html_report(model).startswith(b'<!doctype html>'),'personal_mode':personal_environment()['FOLIOLENS_MODE']=='personal',
+        report={'ssl_context_verified':True,'app_chart_import':bool(altair.__version__),'synthetic_worker':True,'metrics':len(model['metrics']),'pdf':summary_pdf(model).startswith(b'%PDF'),'html':html_report(model).startswith(b'<!doctype html>'),'personal_mode':personal_environment()['FOLIOLENS_MODE']=='personal',
                 'canonical_drawdown':model['drawdown']['available'],'forward_dividends':model['forward_dividends']['available'] and model['forward_dividends']['amount']==44,
                 'offline_chart_toggle':b'data-view="drawdown"' in html_report(model)}
         data,prices=fixture('open_derivatives')

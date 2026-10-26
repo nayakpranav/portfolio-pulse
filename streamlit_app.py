@@ -17,7 +17,7 @@ from pulse.design import STREAMLIT_CSS
 from pulse.mode import uploads_enabled, mode
 # A hot deployment can rerun this file before refreshing imported helper modules.
 import pulse.private_config as _private_config
-if not hasattr(_private_config,'personal_defaults') or getattr(_private_config,'CONFIG_SCHEMA_VERSION',0)!=3:
+if not hasattr(_private_config,'personal_defaults') or getattr(_private_config,'CONFIG_SCHEMA_VERSION',0)!=4:
     importlib.reload(_private_config)
 from pulse.private_config import event_candidates,export_digest,load_private_config,personal_defaults
 from pulse.event_review import review as event_review,remember
@@ -32,12 +32,12 @@ if getattr(_synthetic,'SYNTHETIC_SCHEMA_VERSION',0)!=2:importlib.reload(_synthet
 from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
-if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=6:importlib.reload(_adapter)
+if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=7:importlib.reload(_adapter)
 if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=9:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 import pulse.html_report as _html_report
-if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=7:importlib.reload(_html_report)
+if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=8:importlib.reload(_html_report)
 from pulse.html_report import html_report, HTML_SCHEMA_VERSION
 from pulse.reporting import HOLDING_CSS, holding_cards, table_frame, HOLDING_EXPLANATION
 from pulse.composition import COMPOSITION_CSS, composition_panel
@@ -129,10 +129,9 @@ with st.sidebar:
                         if st.checkbox('The broker evidence confirms a full-position worthless write-off with no proceeds. Remember this exact event privately.',value=candidate['source_row'] in local_defaults.get('worthless_confirmations',[]),key=f"event_{digest}_{candidate['source_row']}"):
                             confirmations.append(candidate['source_row'])
                     st.caption('Canonical identity, cash, full-position and prior-activity checks apply. Successful local confirmations are remembered for the same transaction and prior history in future exports; hosted confirmations stay in this session.')
-            raw_quotes=st.session_state.get('manual_quotes','')
-            if not raw_quotes and local_defaults.get('derivative_quotes'):raw_quotes=json.dumps(local_defaults['derivative_quotes'])
-            if len(raw_quotes.encode('utf-8'))>65536:raise ValueError('Private valuation input exceeds limit')
-            session_config={'export_sha256':digest,'worthless_confirmations':confirmations,'known_events':local_defaults.get('known_events',[]),'derivative_quotes':json.loads(raw_quotes) if raw_quotes else {}}
+            quotes=dict(local_defaults.get('derivative_quotes',{}),**st.session_state.get('manual_quote_values',{}))
+            if len(json.dumps(quotes).encode('utf-8'))>65536:raise ValueError('Private valuation input exceeds limit')
+            session_config={'export_sha256':digest,'worthless_confirmations':confirmations,'known_events':local_defaults.get('known_events',[]),'derivative_quotes':quotes}
         except (AnalysisError,ValueError,TypeError,OSError):
             st.error('The CSV or private profile could not validate. Protected evidence recovery was attempted; no event was approved automatically. Restore the private profile if needed, or review the CSV and optional valuations. No private input is logged.')
             analyze=False
@@ -218,13 +217,42 @@ with st.expander('Data health and coverage'):
         if action.get('validation_status')!='PASS':
             st.text(f"Corporate-action review · {action.get('corporate_action_type','')} · {action.get('old_name','')}\n{action.get('warning_error','Incomplete action evidence; FIFO mutation was rejected.')}")
     st.caption('Tracked lifetime results include the applicable investments and income. Historical returns and benchmark comparison cover stocks/funds, excluding brokerage cash. Missing inputs block only dependent totals.')
+    from pulse.evidence import history_summary
+    st.write(history_summary(model['history_evidence']))
+    st.caption(model['history_evidence']['note'])
+    if model['history_evidence']['rows']:
+        st.dataframe(pd.DataFrame(model['history_evidence']['rows']),hide_index=True,use_container_width=True)
     if model['dependencies']['missing_stock']:st.warning('Holdings rankings cover only valued stocks/funds; unpriced stock/fund positions are omitted. See all current holdings below.')
 if upload_enabled and not model['raw']['synthetic'] and model['dependencies']['missing_derivative']:
     with st.expander('Advanced: optional dated derivative valuations'):
-        st.caption('Optional only. Valid stock/fund results do not require these inputs. Reanalyze to apply a source-identified EUR valuation; no automatic derivative scraper is enabled.')
-        for derivative in model['raw'].get('active_derivatives',[]):
-            st.text(f"{derivative['security_name']} · {derivative['isin']}")
-        st.text_area('Dated manual derivative EUR prices (JSON)',key='manual_quotes',placeholder='{"ISIN": {"price_eur": 1.25, "date": "YYYY-MM-DD", "source": "Broker bid"}}')
+        from pulse.valuations import today, quote_status, remember_quote, MAX_QUOTE_AGE_DAYS
+        st.caption(f'Optional only. Valid stock/fund results do not require this. No automatic derivative scraper is enabled. Observations must be positive EUR per unit, dated within {MAX_QUOTE_AGE_DAYS} calendar days; never enter total position value, acquisition cost or an old execution price.')
+        positions=model['raw'].get('active_derivatives',[])
+        by_isin={r['isin']:r for r in positions}
+        if by_isin and uploaded is not None:
+            selected=st.selectbox('Derivative to value',list(by_isin),format_func=lambda isin:by_isin[isin]['security_name']+' · '+isin,key='manual_instrument')
+            previous=(session_config or {}).get('derivative_quotes',{}).get(selected,{})
+            st.caption('Current units: '+str(by_isin[selected].get('current_quantity','Unavailable'))+' · valuation: '+str(by_isin[selected].get('quote_status','Unavailable')).replace('_',' ').lower())
+            with st.form('manual_quote_form_'+selected):
+                price=st.number_input('Observed price (EUR per unit)',min_value=0.000001,max_value=100000.,value=float(previous.get('price_eur',1)),format='%.6f',key='manual_price_'+selected)
+                observed=st.date_input('Observation date',value=pd.Timestamp(previous.get('date',today())).date(),max_value=today(),key='manual_date_'+selected)
+                source=st.text_input('Observation source',value=previous.get('source',''),placeholder='For example, broker bid observed in your account',max_chars=160,key='manual_source_'+selected)
+                confirmed=st.checkbox('I checked the exact instrument, EUR per-unit amount and observation date.',key='manual_confirm_'+selected)
+                persist=st.checkbox('Remember privately on this computer until the observation expires',disabled=mode()!='personal',key='manual_remember_'+selected)
+                save=st.form_submit_button('Use this observation')
+            if save:
+                quote={'price_eur':price,'date':observed.isoformat(),'source':source.strip()}
+                if not confirmed or quote_status(quote)!='MANUAL_CONFIRMED':
+                    st.error('Confirm a recent, source-identified EUR-per-unit observation. No valuation was applied.')
+                else:
+                    saved=True
+                    if persist:
+                        try:saved=remember_quote(uploaded.getvalue(),selected,quote)
+                        except (OSError,ValueError,TypeError):saved=False
+                    values=dict(st.session_state.get('manual_quote_values',{}));values[selected]=quote
+                    st.session_state['manual_quote_values']=values
+                    st.success('Observation prepared. Click Analyze Portfolio to apply it and regenerate both reports.')
+                    if persist and not saved:st.warning('Private persistence could not finish; the observation remains session-only. No account data or private paths are logged.')
 
 for offset in (0,4):
     with st.container(key='primary_kpis' if offset==0 else 'secondary_kpis'):
@@ -297,6 +325,12 @@ with income_col:
     forecast=model['forward_dividends']
     st.markdown('**'+forecast['label']+'** · '+forward_display(forecast))
     st.caption(forecast['status']+' · '+forecast['note'])
+    with st.expander('Forward dividend coverage details'):
+        st.caption('Estimated future dividends only; not recognized income, interest or a guaranteed payment schedule. Missing net estimates remain unavailable.')
+        if model['dividend_evidence']:
+            coverage=pd.DataFrame(model['dividend_evidence']).rename(columns={'name':'Holding','isin':'ISIN','ticker':'Verified ticker','status':'Canonical distribution status','known_net_estimate':'Known net estimate (EUR)','reason':'Evidence and limitation'})
+            st.dataframe(coverage,hide_index=True,use_container_width=True)
+        else:st.write('No eligible active stock/fund distribution evidence is available.')
 with holdings_col:
     st.markdown('### Portfolio Composition')
     st.markdown('<style>'+COMPOSITION_CSS+'</style>'+composition_panel(model['composition']),unsafe_allow_html=True)

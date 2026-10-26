@@ -9,7 +9,7 @@ from datetime import date
 from pulse import core
 from portfolio_core import canonical_column_mapping
 
-CONFIG_SCHEMA_VERSION = 3
+CONFIG_SCHEMA_VERSION = 4
 
 def export_digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -91,7 +91,7 @@ def personal_defaults(data):
     registry=root/'verified-events.json'
     # Migrate an existing personal installation only within this Windows user's
     # default profile. Explicit test/alternate profiles never inherit it.
-    from pulse.profile import profile_root
+    from pulse.profile import profile_root, configured_root
     legacy_belongs_to_user=bool(os.environ.get('LOCALAPPDATA')) and Path(os.environ['LOCALAPPDATA']).resolve().is_relative_to(profile_root().parent.resolve())
     if not registry.is_file() and not (root/'verified-events.dat').exists() and root==profile_root() and legacy_belongs_to_user:
         registry=Path(os.environ['LOCALAPPDATA'])/'FolioLensPersonal/verified-events.json'
@@ -105,6 +105,13 @@ def personal_defaults(data):
     if records:
         config['known_events']=list({item['transaction_id_sha256']:item for item in
             config.get('known_events',[])+[asdict(s) for s in applicable_specs(normalized(data),records)]}.values())
+    from pulse.valuations import saved_quotes
+    try:
+        saved = saved_quotes(data, root) if configured_root() is not None else {}
+    except (ValueError, TypeError, OSError):
+        saved = {}  # Optional quote corruption cannot block valid stock/fund accounting.
+    if saved:
+        config['derivative_quotes'] = dict(saved, **config.get('derivative_quotes', {}))
     return validate_private_config(config,data)
 
 def install_private_events(ns, config):

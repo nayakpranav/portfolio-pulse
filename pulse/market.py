@@ -127,6 +127,10 @@ def install_market(ns):
                         value['native_currency']=native
                         value['currency']='GBX' if native=='GBp' else native
                 except Exception:pass
+            from pulse.valuations import today, MAX_QUOTE_AGE_DAYS
+            observed=pd.to_datetime(value.get('price_date'),errors='coerce',utc=True)
+            if pd.isna(observed) or not 0 <= (today()-observed.date()).days <= MAX_QUOTE_AGE_DAYS:
+                value.update(price_native=None,status='STALE_OR_FUTURE_CURRENT_QUOTE',price_diagnostic_detail='A recent dated market observation is required.')
             return value
         value=store_call('latest',[ticker],produce).copy()
         # Do not use a quote whose currency/date is unknown; do not infer today's date.
@@ -152,7 +156,7 @@ def install_market(ns):
                 history=ns['yf'].Ticker(f'{currency}EUR=X').history(period='5d',timeout=10)
                 if not history.empty:quote_date=str(pd.Timestamp(history.index[-1]).date())
             except Exception:pass
-            if not quote_date or (date.today()-date.fromisoformat(quote_date)).days>7:rate=np.nan
+            if not quote_date or not 0 <= (date.today()-date.fromisoformat(quote_date)).days <= 7:rate=np.nan
             return {'rate':rate,'date':quote_date,'source':'Yahoo latest daily FX close','native_currency':raw}
         value=store_call('fx',[raw],produce)
         if isinstance(value,dict):
@@ -213,22 +217,25 @@ def install_market(ns):
     ns['_foliolens_capture']=capture
 
 def install_derivatives(ns,config,synthetic=False):
-    """Use canonical valuation arithmetic with explicit private quotes or Yahoo only."""
+    """Canonical arithmetic requires recent evidence; no unverifiable ISIN probe."""
     quotes=config.get('derivative_quotes',{})
     if synthetic and not quotes:return
     ns['ENABLE_DERIVATIVE_QUOTE_PROBE']=True
     def probe(isin):
         if isin in quotes:
             q=quotes[isin]
-            return dict(quote_status='MANUAL_CONFIRMED',live_price_eur=float(q['price_eur']),quote_currency='EUR',
+            from pulse.valuations import quote_status
+            # Fabricated fixtures have an explicit historical analysis date.
+            reference=pd.Timestamp(ns['max_date']).date() if synthetic else None
+            status=quote_status(q,reference)
+            return dict(quote_status=status,live_price_eur=float(q['price_eur']) if status=='MANUAL_CONFIRMED' else np.nan,quote_currency='EUR',
                 quote_date=q['date'],quote_source=q['source'],quote_price_type='MANUAL_EUR_PER_UNIT',
-                quote_confidence='USER_CONFIRMED',quote_error='',quote_source_url='',quote_bid=np.nan,quote_ask=np.nan,
-                quote_last=float(q['price_eur']),quote_raw_match='Explicit dated EUR-per-unit confirmation',all_quote_attempts=[])
-        attempt=ns['yahoo_derivative_probe'](isin)
-        # Canonical Yahoo-only probe is low-confidence and cannot prove an ISIN identity.
-        # Retain diagnostics but require explicit auditable valuation instead of accepting it.
-        return dict(quote_status='YAHOO_DERIVATIVE_IDENTITY_UNVERIFIED',live_price_eur=np.nan,
-            quote_currency=attempt.get('currency',''),quote_date=attempt.get('timestamp',''),quote_source='Yahoo',
+                quote_confidence='USER_CONFIRMED' if status=='MANUAL_CONFIRMED' else 'UNUSABLE',quote_error='' if status=='MANUAL_CONFIRMED' else 'Manual observation is stale, future-dated or invalid; refresh its evidence.',quote_source_url='',quote_bid=np.nan,quote_ask=np.nan,
+                quote_last=float(q['price_eur']) if status=='MANUAL_CONFIRMED' else np.nan,quote_raw_match='Explicit dated EUR-per-unit confirmation',all_quote_attempts=[])
+        # A Yahoo lookup of an ISIN cannot establish the required derivative
+        # identity and was always rejected. Avoid spending provider requests on it.
+        return dict(quote_status='VERIFIED_DERIVATIVE_QUOTE_UNAVAILABLE',live_price_eur=np.nan,
+            quote_currency='',quote_date='',quote_source='',
             quote_source_url='',quote_bid=np.nan,quote_ask=np.nan,quote_last=np.nan,quote_price_type='NONE',quote_raw_match='',
-            quote_confidence='UNVERIFIED',quote_error='No verified derivative identity/quote. Supply a dated manual EUR valuation.',all_quote_attempts=[attempt])
+            quote_confidence='UNVERIFIED',quote_error='No verified derivative identity/quote provider. Optional recent EUR-per-unit evidence can be supplied locally; automatic scraping is disabled.',all_quote_attempts=[])
     ns['multi_source_derivative_quote_probe']=probe
