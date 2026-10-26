@@ -37,7 +37,7 @@ if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=10:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 import pulse.html_report as _html_report
-if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=9:importlib.reload(_html_report)
+if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=10:importlib.reload(_html_report)
 from pulse.html_report import html_report, HTML_SCHEMA_VERSION
 from pulse.reporting import HOLDING_CSS, holding_cards, table_frame, HOLDING_EXPLANATION
 from pulse.composition import COMPOSITION_CSS, composition_panel

@@ -169,4 +169,6 @@ def test_report_model_excludes_raw_quotes_and_escapes_labels():
     text=html_report(model).decode();pdf=PdfReader(BytesIO(summary_pdf(model)))
     assert 'Derivative Quote Center' in text and 'PRIVATE_PROVIDER_BODY' not in text and '<img src=x' not in text
     assert '&lt;img' in text and len(pdf.pages)==1 and raw==before
+    assert 'class="derivative-quotes-table"' in text and 'tabindex="0" role="region"' in text
+    assert '.derivative-quotes-table td{white-space:nowrap}' in text
     assert all(m.display in text and m.display.replace('€','EUR ') in pdf.pages[0].extract_text() for m in model['metrics'])
