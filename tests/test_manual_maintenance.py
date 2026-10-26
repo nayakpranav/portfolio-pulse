@@ -13,6 +13,7 @@ from pulse.adapter import prepare
 from pulse.html_report import html_report
 from pulse.pdf import summary_pdf
 from pypdf import PdfReader
+from bs4 import BeautifulSoup
 
 DAY=date(2026,9,30)
 
@@ -101,3 +102,5 @@ def test_complete_scope_switch_updates_both_exports_without_engine(reports,monke
     assert 'Analysis: Full portfolio' in app.session_state['html'].decode()
     assert 'Analysis: Full portfolio' in PdfReader(BytesIO(app.session_state['pdf'])).pages[0].extract_text()
     app.radio[0].set_value('Stocks & funds').run();assert not app.exception and app.metric[0].value==stock_value
+    assert 'Analysis: Stocks & funds' in BeautifulSoup(app.session_state['html'],'html.parser').get_text(' ',strip=True)
+    assert 'Analysis: Stocks & funds' in PdfReader(BytesIO(app.session_state['pdf'])).pages[0].extract_text()
