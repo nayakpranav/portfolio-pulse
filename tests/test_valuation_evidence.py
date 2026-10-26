@@ -86,6 +86,15 @@ def test_hosted_quote_evidence_is_session_only(personal,monkeypatch):
     assert not (personal/'derivative-valuations.dat').exists()
 
 
+@pytest.mark.parametrize('deployment',['owner_hosted','public_demo'])
+def test_nonpersonal_defaults_never_inherit_existing_local_quotes(personal,monkeypatch,deployment):
+    data,_=fixture('open_derivatives');isin=instrument(data)
+    assert remember_quote(data,isin,quote()) and saved_quotes(data)
+    monkeypatch.setenv('FOLIOLENS_MODE',deployment)
+    monkeypatch.setenv('FOLIOLENS_OWNER_GATE_VERIFIED','1');monkeypatch.setenv('FOLIOLENS_DATA_RIGHTS_VERIFIED','1')
+    assert not personal_defaults(data).get('derivative_quotes')
+
+
 def test_multiple_quotes_saved_without_lost_updates(personal):
     data,_=fixture('open_derivatives');isins=sorted({r['symbol'] for r in csv.DictReader(StringIO(data.decode())) if r['asset_class']=='DERIVATIVE'})
     with ThreadPoolExecutor(max_workers=3) as executor:
