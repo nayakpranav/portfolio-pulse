@@ -1,5 +1,9 @@
 # Personal engineering assessment — 26 October 2026
 
+This records the pre-release PR #3 assessment. Its original development-only
+boundaries describe that completed audit, not the later authorized production
+upgrade. Stable integration is documented in [v1.0.11 notes](RELEASE_v1.0.11.md).
+
 ## Baseline and boundaries
 
 Baseline: v1.0.10, `c0c45d190a38c0e84a14a3073b52ff2231a576e4`.

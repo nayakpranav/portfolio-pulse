@@ -84,10 +84,12 @@ historical TWR and benchmark PME retain their established definitions.
 
 ## Verify
 
-The personal reliability development branch adds optional graphical dated
+FolioLens Personal **v1.0.11** adds optional graphical dated
 valuation evidence and inspectable historical/dividend coverage. Its independent
 QuantStats validator is developer-only; runtime dependencies and accounting are
 unchanged. [Engineering assessment and integration decisions](docs/ENGINEERING_ASSESSMENT_2026-10-26.md).
+See [v1.0.11 production notes](docs/RELEASE_v1.0.11.md) for integration, packaging
+and private-profile preservation.
 
 ```sh
 python -m pip install -r requirements-dev.txt

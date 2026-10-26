@@ -113,7 +113,10 @@ def store_records(root, records):
 def merge_records(root, additions):
     with _lock:
         records = read_records(root)
+        changed = False
         for record in additions:
             if record not in records:
                 records.append(record)
-        store_records(root, records)
+                changed = True
+        if changed:
+            store_records(root, records)

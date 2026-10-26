@@ -216,3 +216,10 @@ def test_hosted_confirmation_never_creates_shared_registry(tmp_path,monkeypatch)
     config=dict(export_sha256=export_digest(data),worthless_confirmations=[review(data,{})[0]['source_row']])
     result=run_analysis(data,prices=prices,private_config=config)
     assert remember(data,config,result)==0 and not list(tmp_path.iterdir())
+
+
+def test_unchanged_verified_evidence_is_not_regenerated(personal):
+    data,prices=fixture('unsupported_action');result=confirmed(data,prices)
+    before={p.name:p.read_bytes() for p in personal.glob('*.dat')}
+    assert remember(data,personal_defaults(data),result)==1
+    assert before=={p.name:p.read_bytes() for p in personal.glob('*.dat')}
