@@ -16,7 +16,7 @@ from pulse.composition import COMPOSITION_CSS, composition_panel
 from pulse.reporting import HOLDING_CSS, holding_cards, money, table_html, HOLDING_EXPLANATION
 from pulse.analytics import risk_summary, forward_display
 
-HTML_SCHEMA_VERSION = 8
+HTML_SCHEMA_VERSION = 11
 SCRIPT = '''document.querySelectorAll('[data-period]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-period]').forEach(function(other){other.setAttribute('aria-pressed','false');});button.setAttribute('aria-pressed','true');document.getElementById('period-value').textContent=button.dataset.display;document.getElementById('period-dates').textContent=button.dataset.dates;});});'''
 SCRIPT += '''document.querySelectorAll('[data-view]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-view]').forEach(function(other){other.setAttribute('aria-pressed',String(other===button));var panel=document.getElementById(other.dataset.view+'-view');panel.hidden=other!==button;panel.setAttribute('aria-hidden',String(other!==button));});});});'''
 STYLE = CSS_TOKENS+'''[hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;background:var(--fl-background);color:var(--fl-text);font:16px/1.55 system-ui,sans-serif}main{max-width:1300px;margin:auto;padding:32px}
@@ -30,7 +30,7 @@ button{font:inherit;border:1px solid var(--fl-border);background:var(--fl-backgr
 footer{border-top:1px solid var(--fl-border);margin-top:32px;padding-top:20px;font-size:.875rem;display:grid;grid-template-columns:1fr 1fr;gap:24px}.disclaimer{grid-column:1/-1}.holding-description{font-size:.875rem;color:var(--fl-muted)}
 @media(max-width:900px){main{padding:24px}.income-layout{grid-template-columns:1fr}.income-facts{border-left:0;border-top:1px solid var(--fl-border);padding:16px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:16px}.income-facts .income-note{grid-column:1/-1}}
 @media(max-width:560px){main{padding:16px}header{display:block}.report-meta{text-align:left;margin-top:18px}h1{font-size:2rem}.panel{padding:18px}footer{grid-template-columns:1fr}.income-facts{grid-template-columns:1fr}.period-controls{gap:6px}button{padding:8px 12px}.wealth-chart text{font-size:20px}.wealth-chart .minor-tick{display:none}}
-'''+KPI_CSS+HOLDING_CSS+COMPOSITION_CSS+'''.monthly-values{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;font-size:.875rem;font-variant-numeric:tabular-nums;margin-top:8px}.monthly-values span{overflow-wrap:anywhere}.monthly-values strong{color:#f6f9fd}@media(max-width:560px){.monthly-values{grid-template-columns:repeat(2,minmax(0,1fr))}}'''
+'''+KPI_CSS+HOLDING_CSS+COMPOSITION_CSS+'''.monthly-values{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;font-size:.875rem;font-variant-numeric:tabular-nums;margin-top:8px}.monthly-values span{overflow-wrap:anywhere}.monthly-values strong{color:#f6f9fd}.derivative-quotes-table{min-width:1800px}.derivative-quotes-table th,.derivative-quotes-table td{white-space:nowrap}.derivative-quotes-table td:first-child{white-space:normal;min-width:260px;max-width:340px}.derivative-quotes-table td:last-child{white-space:normal;min-width:240px;max-width:360px}.derivative-quote-center .table-scroll:focus-visible{outline:2px solid var(--fl-mint);outline-offset:3px}@media(max-width:560px){.monthly-values{grid-template-columns:repeat(2,minmax(0,1fr))}}'''
 
 def text(value):
     return escape(str(value),quote=True)
@@ -156,5 +156,11 @@ def html_report(model):
 
     parts.append('<div class="warning"><ul>'+''.join('<li>'+text(s)+'</li>' for s in model['issues'])+'</ul></div>' if model['issues'] else '<p>No blocking issues in the tracked analytical scope.</p>')
     parts.append(evidence_details(model))
+    center=model.get('derivative_quotes',{})
+    if center.get('active'):
+        from pulse.derivative_reporting import quote_summary,quote_table_rows,indicative_summary
+        rows=quote_table_rows(center);columns=list(rows[0])
+        parts.append('<p class="muted">'+text(indicative_summary(center))+'</p>')
+        parts.append('<details class="derivative-quote-center"><summary>Derivative Quote Center</summary><p>'+text(quote_summary(center))+'</p><p class="muted">'+text(center['note'])+'</p><div class="table-scroll" tabindex="0" role="region" aria-label="Derivative quotation details; scroll horizontally to see all columns"><table class="derivative-quotes-table"><thead><tr>'+''.join('<th>'+text(k)+'</th>' for k in columns)+'</tr></thead><tbody>'+''.join('<tr>'+''.join('<td>'+text(row[k])+'</td>' for k in columns)+'</tr>' for row in rows)+'</tbody></table></div><p class="muted">Snapshot evidence only. Scroll the table to see all quote fields. This offline report makes no quotation requests. Raw provider documents and private transaction identifiers are not included.</p></details>')
     parts.append('<footer><div><h3>Financial scope</h3><p>Stocks/funds lifetime profit excludes derivatives and cash interest. Full-portfolio lifetime profit includes net income. Capital committed and recovery cover the full ecosystem; recovery is not withdrawable cash. Missing data remains unavailable.</p></div><div><h3>Benchmark and sources</h3><p>Benchmark: '+text(model['raw'].get('benchmark_name','No comparison'))+' · EUR reporting. Comparisons require validated adjusted prices, EUR conversion and matched cash-flow dates. Historical estimates, stale quotes and incomplete inputs are disclosed above.</p></div><div class="disclaimer"><p>Offline report: no provider requests, external scripts, fonts or login are required. This file contains financial information; clearing the application does not delete files you download.</p><p>Unofficial independent analysis. Not affiliated with Trade Republic. Not a tax certificate or investment recommendation.</p></div></footer></main><script>'+SCRIPT+'</script></body></html>')
     return ''.join(parts).encode('utf-8')

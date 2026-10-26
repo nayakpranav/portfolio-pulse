@@ -14,10 +14,10 @@ from urllib.parse import urlparse
 import numpy as np
 import pandas as pd
 
-def allowed_host(url):
+def allowed_host(url, derivative_documents=False):
     parsed=urlparse(str(url))
     host=parsed.hostname or ''
-    return parsed.scheme=='https' and (host=='yahoo.com' or host.endswith('.yahoo.com') or host=='api.openfigi.com')
+    return parsed.scheme=='https' and (host=='yahoo.com' or host.endswith('.yahoo.com') or host=='api.openfigi.com' or derivative_documents and host=='markets.vontobel.com')
 
 def install_transport_controls(ns):
     """Clamp requests; stop immediately on access restrictions, never evade them."""
@@ -29,8 +29,9 @@ def install_transport_controls(ns):
     for cls in classes:
         original=cls.request
         def controlled(self, method, url, _original=original, **kwargs):
-            provider='openfigi' if urlparse(str(url)).hostname=='api.openfigi.com' else 'yahoo'
-            if not allowed_host(url) or provider in state['restricted_providers'] or state['requests']>=800 or time.monotonic()>=state.get('forecast_deadline',float('inf')):
+            host=urlparse(str(url)).hostname
+            provider='openfigi' if host=='api.openfigi.com' else 'vontobel_private_document' if host=='markets.vontobel.com' else 'yahoo'
+            if not allowed_host(url,os.environ.get('FOLIOLENS_AUTO_DERIVATIVE_DOCUMENTS')=='1') or provider in state['restricted_providers'] or state['requests']>=800 or time.monotonic()>=state.get('forecast_deadline',float('inf')):
                 raise RuntimeError('Provider unavailable or request budget exceeded')
             timeout=kwargs.get('timeout',10)
             kwargs['timeout']=min(float(timeout or 10),10) if not isinstance(timeout,tuple) else (5,10)
@@ -40,7 +41,7 @@ def install_transport_controls(ns):
                 kwargs['timeout']=tuple(min(v,cap/2) for v in kwargs['timeout']) if isinstance(kwargs['timeout'],tuple) else min(kwargs['timeout'],cap)
             # Providers have fixed destinations. Refuse redirects to unapproved services.
             kwargs['allow_redirects']=False
-            for attempt in range(2):
+            for attempt in range(1 if provider=='vontobel_private_document' else 2):
                 if state['requests']>=800:raise RuntimeError('Provider request budget exceeded')
                 if time.monotonic()>=state.get('forecast_deadline',float('inf')):raise RuntimeError('Dividend reporting request budget exceeded')
                 state['requests']+=1
@@ -48,7 +49,7 @@ def install_transport_controls(ns):
                     response=_original(self,method,url,**kwargs)
                     if response.status_code in {401,403,429,999}:
                         if provider not in state['restricted_providers']:state['restricted_providers'].append(provider)
-                    if 300<=response.status_code<400:
+                    if 300<=response.status_code<400 and provider!='vontobel_private_document':
                         raise RuntimeError('Provider redirect requires review')
                     return response
                 except timeout_types:
@@ -221,7 +222,30 @@ def install_derivatives(ns,config,synthetic=False):
     quotes=config.get('derivative_quotes',{})
     if synthetic and not quotes:return
     ns['ENABLE_DERIVATIVE_QUOTE_PROBE']=True
+    evidence={};ns['_foliolens_derivative_quotes']=evidence
+    collector=None
+    collect_enabled=not synthetic and os.environ.get('FOLIOLENS_AUTO_DERIVATIVE_DOCUMENTS')=='1' and not os.environ.get('FOLIOLENS_REPLAY_PATH')
+    replay_quotes=None
+    if not synthetic and os.environ.get('FOLIOLENS_REPLAY_PATH'):
+        replay_quotes=json.loads(Path(os.environ['FOLIOLENS_REPLAY_PATH']).read_text(encoding='utf-8')).get('derivative_quotes',{})
     def probe(isin):
+        nonlocal collector
+        if not synthetic:
+            from pulse.derivative_quotes import canonical_quote,timestamp
+            if replay_quotes is not None:
+                evidence[isin]=replay_quotes.get(isin,dict(attempts=[],selected=None,metadata={},status='NO_CAPTURED_AUTOMATIC_OBSERVATION'))
+            elif collect_enabled:
+                if collector is None:
+                    from pulse.derivative_quotes import Collector
+                    positions=ns.get('derivative_positions',pd.DataFrame())
+                    isins=positions.loc[positions['position_status'].eq('ACTIVE'),'isin'].tolist() if not positions.empty else [isin]
+                    from pulse.derivative_cache import QuoteCache
+                    directory=os.environ.get('FOLIOLENS_DERIVATIVE_CACHE_DIRECTORY')
+                    collector=Collector(isins=isins,cache=QuoteCache(directory) if directory else None)
+                evidence[isin]=collector.quote(isin)
+            evaluation=timestamp(evidence.get(isin,{}).get('evaluated_at')) if replay_quotes is not None else None
+            automatic=canonical_quote(evidence.get(isin,{}),now=evaluation)
+            if automatic:return automatic
         if isin in quotes:
             q=quotes[isin]
             from pulse.valuations import quote_status
@@ -237,5 +261,5 @@ def install_derivatives(ns,config,synthetic=False):
         return dict(quote_status='VERIFIED_DERIVATIVE_QUOTE_UNAVAILABLE',live_price_eur=np.nan,
             quote_currency='',quote_date='',quote_source='',
             quote_source_url='',quote_bid=np.nan,quote_ask=np.nan,quote_last=np.nan,quote_price_type='NONE',quote_raw_match='',
-            quote_confidence='UNVERIFIED',quote_error='No verified derivative identity/quote provider. Optional recent EUR-per-unit evidence can be supplied locally; automatic scraping is disabled.',all_quote_attempts=[])
+            quote_confidence='UNVERIFIED',quote_error=('No current exact-ISIN EUR-per-unit bid passed automatic validation. See Derivative Quote Center; optional manual evidence remains available.' if isin in evidence else 'No verified derivative identity/quote provider. Optional recent EUR-per-unit evidence can be supplied locally; automatic scraping is disabled.'),all_quote_attempts=[])
     ns['multi_source_derivative_quote_probe']=probe

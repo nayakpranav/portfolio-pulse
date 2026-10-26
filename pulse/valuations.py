@@ -128,6 +128,6 @@ def diagnostic_rows(rows, positions):
         if row.get('instrument_type') == 'DERIVATIVE':
             quote = by_isin.get(row.get('isin'), {})
             row['quote_date'] = quote.get('quote_date', '')
-            row['attempted_sources'] = 'USER_SUPPLIED_EUR_OBSERVATION' if quote.get('quote_status', '').startswith('MANUAL_') else 'NONE: verified provider identity unavailable; automatic scraping disabled'
+            row['attempted_sources'] = 'USER_SUPPLIED_EUR_OBSERVATION' if quote.get('quote_status', '').startswith('MANUAL_') else quote.get('quote_source','') if quote.get('quote_status')=='AUTO_VERIFIED_BID' else 'NONE: no verified automatic bid; see derivative quote evidence'
         output.append(row)
     return output

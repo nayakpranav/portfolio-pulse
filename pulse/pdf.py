@@ -21,7 +21,7 @@ def panel(c,x,y,width,height):
     c.setFillColor(HexColor(COLORS['surface']));c.setStrokeColor(GRID)
     c.setLineWidth(.4);c.roundRect(x,y,width,height,7,fill=1,stroke=1)
 
-PDF_SCHEMA_VERSION = 9
+PDF_SCHEMA_VERSION = 11
 
 
 def compact_return(value,width,font='Helvetica-Bold',size=8):
@@ -226,9 +226,20 @@ def summary_pdf(model):
     health_lines=lines(health.replace(derivative_detail,'').strip(),w-114)
     # The full diagnostic list is in the UI/HTML; summarize additional checks
     # explicitly rather than shrink prose or draw beyond the A4 page.
-    limit=3 if derivative_detail else 4
+    center=model.get('derivative_quotes',{})
+    estimate=center.get('indicative_known_subtotal')
+    limit=(2 if estimate is not None else 3) if derivative_detail or center.get('active') and not model['raw'].get('synthetic') else 4
     if len(health_lines)>limit:health_lines=health_lines[:limit-1]+['Additional checks require review; full diagnostics are in the application and HTML report.']
     if derivative_detail:health_lines.append(derivative_detail)
+    if center.get('active') and not model['raw'].get('synthetic'):
+        if derivative_detail:
+            health_lines[-1]=f"Derivative bids: {center['automatic']}/{center['active']} automatic; {center['missing']} unvalued. Full-portfolio value/profit unavailable."
+        else:
+            health_lines.append(f"Derivative bids: {center['automatic']}/{center['active']} automatic. Dated valuation evidence is detailed in the HTML report.")
+        if estimate is not None:
+            label='total' if center.get('indicative_total') is not None else 'known subtotal (partial)'
+            full=center.get('full_portfolio_estimate')
+            health_lines.append(f"Indicative derivative {label}: EUR {estimate:,.2f}"+(f"; full-portfolio estimate (cash excluded): EUR {full:,.2f}." if full is not None else '; full-portfolio estimate unavailable.'))
     _label(c,'HEALTH',29,80,7,AMBER if model['issues'] else MUTED,'Helvetica-Bold')
     y=80
     for line in health_lines:

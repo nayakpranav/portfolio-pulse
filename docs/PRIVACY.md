@@ -38,9 +38,22 @@ Only public identification/price inputs are sent; transaction exports, account
 identifiers, private transaction UUIDs and reports are never request payloads.
 Unapproved non-Yahoo derivative scrapers remain disabled.
 
+On the unpromoted derivative-evidence branch, personal-only analyses may also
+request small exact public ISIN document copies from the reviewed Vontobel website.
+The Stuttgart bulk adapter and its allowed destinations are removed. No holdings,
+quantities or broker records are sent. Only dated, exact-ISIN EUR-per-unit bids
+can support separate indicative estimates; canonical availability stays unchanged.
+A small daily market cache is kept separately under the local profile's
+`quote-cache` directory, encrypted for the Windows user. It contains source,
+quote/type/time and scoped metadata/attempt diagnostics, never transactions,
+quantities, raw documents or portfolio results. Automatic quotes are not written
+into the existing manual-evidence or event registries. Public and owner-
+hosted modes cannot inherit the personal worker gate. See
+[the provider access assessment](DERIVATIVE_QUOTES.md).
+
 ## Isolation and cleanup
 
-Private input/config/results and all worker/provider caches stay in the analysis
+Private input/config/results and worker-local provider caches stay in the analysis
 temporary directory, which is deleted after success, errors and timeouts. Cleanup
 retries transient filesystem locks; persistent failure is reported without exposing
 paths. A hard process/OS crash can leave orphaned files. Operators must restrict
@@ -48,7 +61,9 @@ backend storage access and remove stale workspaces; no secure RAM/disk erasure i
 promised. The original personal registry/metadata seed is not distributed.
 
 There are no shared portfolio objects or private `st.cache_data` entries. Provider
-objects/observations are cached within a single worker only. Models and PDF bytes
+objects are cached within a single worker only. The separately disclosed
+local daily market cache intentionally survives session clearing; every usable
+observation is revalidated for identity, units, dates and provenance. Models and PDF bytes
 remain in the current Streamlit session. Clear resets upload/model/PDF and event/
 manual-review state. Changing the uploaded export removes stale analysis and
 download state. Framework connection expiry/orphan-media cleanup controls eventual

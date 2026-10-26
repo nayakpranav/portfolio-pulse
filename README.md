@@ -2,6 +2,12 @@
 
 Your investments, in focus.
 
+Development branch: automatic derivative quotation evidence is under validation.
+The installed/released stable application remains v1.0.11. The current authorized
+lightweight document adapter has not established a usable dated-bid feed;
+this is not a promoted v1.0.12 release. See [provider access, validation and
+remaining prerequisites](docs/DERIVATIVE_QUOTES.md).
+
 An independent, unofficial Streamlit application for Trade Republic transaction
 exports. A pinned V6.7.8 analytical core powers eight essential metrics, three
 charts, a TWR drawdown view, a qualified forward-dividend estimate, deterministic
