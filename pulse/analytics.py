@@ -24,6 +24,7 @@ def drawdown(nav,historical,scope,eligible=True):
     # Only the initial performance baseline may lack a return. Never bridge
     # an interior gap using the canonical carried-forward NAV placeholder.
     if len(nav)<2 or daily.iloc[1:].isna().any() or not np.isfinite(daily.iloc[1:]).all():return out
+    if pd.notna(daily.iloc[0]) and abs(daily.iloc[0])>1e-12 or (daily.iloc[1:] < -1).any():return out
     if not np.isfinite(index).all() or (index<0).any() or not math.isclose(index.iloc[0],100,abs_tol=1e-7):return out
     if coverage.isna().any() or (coverage<99.999).any() or not np.isfinite(risk).all():return out
     linked=100*np.concatenate(([1.0],np.cumprod(1+daily.iloc[1:].to_numpy())))

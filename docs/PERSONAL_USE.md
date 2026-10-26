@@ -67,9 +67,13 @@ Canonical derivative FIFO, settlements and valuation arithmetic are retained.
 Yahoo's generic ISIN probe cannot establish a sufficiently reliable derivative
 identity, so a low-confidence result is diagnostic, not an accepted valuation.
 Unapproved non-Yahoo scrapers are disabled. After analysis, active positions appear
-under **Advanced: optional dated derivative valuations**. Optional dated **EUR per-unit** valuations can be entered as JSON,
-then reanalyze. Positive finite prices, actual derivative ISINs, a nonfuture date,
-source and the exact export binding are required. A captured observation date
+under **Advanced: optional dated derivative valuations**. Select the instrument,
+enter a positive **EUR per-unit** observation, date and source, confirm the exact
+instrument/unit/date, then click **Analyze Portfolio**. No JSON editing is needed.
+Observations must be no more than seven calendar days old. Optional local
+remembering is encrypted and bound to exact instrument activity; expired/changed
+evidence is not reused. File-based private configuration remains supported.
+A captured observation date
 must not be represented as a verified exchange quote timestamp. Manual valuations
 are disclosed and keep data health partial. Without them, dependent tracked-value
 and lifetime-profit totals remain unavailable; independently valid returns/income

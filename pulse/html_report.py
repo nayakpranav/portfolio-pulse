@@ -16,7 +16,7 @@ from pulse.composition import COMPOSITION_CSS, composition_panel
 from pulse.reporting import HOLDING_CSS, holding_cards, money, table_html, HOLDING_EXPLANATION
 from pulse.analytics import risk_summary, forward_display
 
-HTML_SCHEMA_VERSION = 7
+HTML_SCHEMA_VERSION = 8
 SCRIPT = '''document.querySelectorAll('[data-period]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-period]').forEach(function(other){other.setAttribute('aria-pressed','false');});button.setAttribute('aria-pressed','true');document.getElementById('period-value').textContent=button.dataset.display;document.getElementById('period-dates').textContent=button.dataset.dates;});});'''
 SCRIPT += '''document.querySelectorAll('[data-view]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-view]').forEach(function(other){other.setAttribute('aria-pressed',String(other===button));var panel=document.getElementById(other.dataset.view+'-view');panel.hidden=other!==button;panel.setAttribute('aria-hidden',String(other!==button));});});});'''
 STYLE = CSS_TOKENS+'''[hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;background:var(--fl-background);color:var(--fl-text);font:16px/1.55 system-ui,sans-serif}main{max-width:1300px;margin:auto;padding:32px}
@@ -112,6 +112,25 @@ def income_chart(months):
     key='<div class="monthly-values" aria-label="Exact monthly income in EUR">'+''.join('<span>'+text(m['label'])+': <strong>'+text(monthly_label(m))+'</strong></span>' for m in months)+'</div><p class="muted">EUR · * partial coverage · —/dash means uncovered, not zero.</p>'
     return ''.join(svg)+key
 
+def evidence_details(model):
+    from pulse.evidence import history_summary
+    history=model['history_evidence']
+    parts=['<details class="evidence-details"><summary>Historical pricing evidence</summary><p>'+text(history_summary(history))+'</p><p class="muted">'+text(history['note'])+'</p>']
+    columns=[('security_name','Holding'),('yahoo_ticker','Verified ticker'),('history_source','History source'),('externally_observed_market_price_observations','Observed dates'),('external_market_effective_observations','Market or carried dates'),('transaction_or_filled_fallback_observations','Fallback dates'),('unresolved_observations','Unresolved dates')]
+    if history['rows']:
+        parts.append('<div class="table-scroll"><table><thead><tr>'+''.join('<th>'+text(label)+'</th>' for _,label in columns)+'</tr></thead><tbody>')
+        for row in history['rows']:parts.append('<tr>'+''.join('<td>'+text(row.get(key) if row.get(key) is not None else 'Unavailable')+'</td>' for key,_ in columns)+'</tr>')
+        parts.append('</tbody></table></div>')
+    parts.append('</details><details class="evidence-details"><summary>Forward dividend coverage details</summary><p class="muted">Known estimates for active stocks/funds; recently closed earned entitlements may also affect the canonical total. Not recognized income or interest. Unknown net estimates are unavailable, not zero.</p>')
+    if model['dividend_evidence']:
+        parts.append('<div class="table-scroll"><table><thead><tr><th>Holding</th><th>Verified ticker</th><th>Distribution status</th><th>Known net estimate</th><th>Evidence and limitation</th></tr></thead><tbody>')
+        for row in model['dividend_evidence']:
+            parts.append('<tr><td>'+text(row['name'])+'</td><td>'+text(row['ticker'])+'</td><td>'+text(row['status'])+'</td><td class="number">'+money(row['known_net_estimate'])+'</td><td>'+text(row['reason'])+'</td></tr>')
+        parts.append('</tbody></table></div>')
+    else:parts.append('<p>No eligible active stock/fund distribution evidence is available.</p>')
+    return ''.join(parts)+'</details>'
+
+
 def html_report(model):
     """Return session-local UTF-8 bytes, with a new non-personal export token."""
     snap=model['snapshot'];synthetic=bool(model['raw'].get('synthetic'))
@@ -136,5 +155,6 @@ def html_report(model):
     parts.append('<details><summary>See Top 10 holdings</summary>'+table_html(snap['top_holdings'])+'</details><details><summary>All current stock/fund holdings</summary>'+table_html(model['holdings'],True)+'</details><p class="muted">Closed and derecognized positions are excluded. Unpriced positions are not assigned zero. Performance coverage qualifies each open-position return.</p><section class="observations"><h2>What Stands Out?</h2><ul>'+''.join('<li>'+text(s)+'</li>' for s in model['insights'])+'</ul></section><h2>Data health and coverage</h2>')
 
     parts.append('<div class="warning"><ul>'+''.join('<li>'+text(s)+'</li>' for s in model['issues'])+'</ul></div>' if model['issues'] else '<p>No blocking issues in the tracked analytical scope.</p>')
+    parts.append(evidence_details(model))
     parts.append('<footer><div><h3>Financial scope</h3><p>Stocks/funds lifetime profit excludes derivatives and cash interest. Full-portfolio lifetime profit includes net income. Capital committed and recovery cover the full ecosystem; recovery is not withdrawable cash. Missing data remains unavailable.</p></div><div><h3>Benchmark and sources</h3><p>Benchmark: '+text(model['raw'].get('benchmark_name','No comparison'))+' · EUR reporting. Comparisons require validated adjusted prices, EUR conversion and matched cash-flow dates. Historical estimates, stale quotes and incomplete inputs are disclosed above.</p></div><div class="disclaimer"><p>Offline report: no provider requests, external scripts, fonts or login are required. This file contains financial information; clearing the application does not delete files you download.</p><p>Unofficial independent analysis. Not affiliated with Trade Republic. Not a tax certificate or investment recommendation.</p></div></footer></main><script>'+SCRIPT+'</script></body></html>')
     return ''.join(parts).encode('utf-8')

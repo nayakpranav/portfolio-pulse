@@ -1,0 +1,3 @@
+# Optional developer-only independent validation. Never a portable/runtime input.
+-r requirements-dev.txt
+quantstats==0.0.86

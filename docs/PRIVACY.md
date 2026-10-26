@@ -79,6 +79,13 @@ financial information and must not be uploaded to the public app or published.
 The public audit covers staged/tracked source; Git-history hygiene is reviewed
 separately. Synthetic fixtures alone are committed.
 
+Optional remembered derivative observations use a separate Windows-user-encrypted
+local file, containing only the ISIN, observation and exact prior-activity digest.
+No broker credentials or complete export is stored. Records are applied only to
+matching instrument activity and expire for valuation purposes after seven days.
+Hosted reviews are session-only. Clearing staged quotes retains explicitly saved
+local evidence. Generic packages and public tests never include these records.
+
 Tests cover independent workers/sessions, session-specific PDF bytes, clearing,
 export-bound confirmations, malformed/oversized input, provider failures and
 restrictions, admission/memory/time limits and transient cleanup failures. They

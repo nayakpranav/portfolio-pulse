@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+import ssl
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -24,12 +25,19 @@ def build():
         '--paths',str(ROOT),'--paths',str(ROOT/'vendor/v678')]
     for name in ('streamlit','yfinance','curl_cffi','altair'):
         command+=['--collect-all',name]
-    for name in ('pulse.runner','pulse.adapter','pulse.pdf','pulse.html_report','pulse.reporting','pulse.design','pulse.composition','pulse.holding_performance','pulse.analytics','pulse.forward','pulse.synthetic','pulse.profile','pulse.event_review','pulse.partial','worker_hooks','psutil','bs4','requests','reportlab','pyarrow','uvicorn','websockets'):
+    for name in ('pulse.runner','pulse.adapter','pulse.pdf','pulse.html_report','pulse.reporting','pulse.design','pulse.composition','pulse.holding_performance','pulse.analytics','pulse.forward','pulse.synthetic','pulse.profile','pulse.event_review','pulse.partial','pulse.valuations','pulse.evidence','worker_hooks','psutil','bs4','requests','reportlab','pyarrow','uvicorn','websockets'):
         command+=['--hidden-import',name]
-    for name in ('pytest','playwright','pymupdf','pip_audit','IPython','matplotlib','scipy'):
+    for name in ('pytest','playwright','pymupdf','pip_audit','IPython','matplotlib','scipy','quantstats','skfolio','edgar','pytr'):
         command+=['--exclude-module',name]
     for source,target in [('streamlit_app.py','.'),('vendor/v678','vendor/v678'),('assets','assets'),('.streamlit/config.toml','.streamlit')]:
         command+=['--add-data',str(ROOT/source)+';'+target]
+    # Some managed Python builds load this public trust-policy resource beside
+    # ssl.py. Preserve that policy in the frozen runtime; never disable TLS or
+    # remove the interpreter's verification hook. Official Python needs no copy.
+    trust_policy=Path(ssl.__file__).with_name('codex-rejected-cas.pem')
+    if trust_policy.is_file():
+        assert b'PRIVATE KEY' not in trust_policy.read_bytes(),'Unexpected private TLS resource'
+        command+=['--add-data',str(trust_policy)+';.']
     command+=[str(ROOT/'desktop/personal.py')]
     subprocess.run(command,cwd=ROOT,check=True)
     folder=output/'portable/Open FolioLens Personal'

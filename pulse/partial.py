@@ -81,6 +81,7 @@ def projection(ns):
     return dict(excluded=[dict(isin=isin,name=next(iter(df.loc[df['isin'].eq(isin),'security_name']),isin)) for isin in sorted(affected)],
         holdings=chosen['holdings'],scope_dividends=chosen['dividends'],advanced_metrics=advanced['metrics'],
         historical_metrics=historical['metrics'],daily_nav_history=historical['daily_nav'],
+        historical_price_audit=historical['historical_ticker_audit'],
         period_performance=historical['period_performance'],wealth_contribution=historical['wealth_contribution'],
         scope_sources=sources,lifetime_cashflow_ledger=life['cashflow_ledger'],
         valuation_diagnostics=ns['build_valuation_diagnostics'](chosen['holdings'],ns['active_derivatives']))

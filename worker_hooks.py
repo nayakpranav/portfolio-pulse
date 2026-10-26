@@ -114,6 +114,9 @@ def write_results(ns):
     result['provider_diagnostics']=ns.get('_foliolens_transport',{})
     result['fx_observations']=ns.get('_foliolens_fx',{})
     result['active_derivatives']=serialize(ns.get('active_derivatives',pd.DataFrame()))
+    from pulse.valuations import diagnostic_rows
+    result['valuation_diagnostics']=diagnostic_rows(result['valuation_diagnostics'],result['active_derivatives'])
+    result['historical_price_audit']=serialize(ns.get('historical_ticker_audit',pd.DataFrame()).drop(columns=['error'],errors='ignore'))
     result['worthless_candidates']=serialize(ns.get('worthless_derecognition_diagnostics',pd.DataFrame()))
     from pulse.partial import projection
     result['unaffected_scope']=serialize(projection(ns))

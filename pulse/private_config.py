@@ -9,7 +9,7 @@ from datetime import date
 from pulse import core
 from portfolio_core import canonical_column_mapping
 
-CONFIG_SCHEMA_VERSION = 3
+CONFIG_SCHEMA_VERSION = 4
 
 def export_digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -105,6 +105,13 @@ def personal_defaults(data):
     if records:
         config['known_events']=list({item['transaction_id_sha256']:item for item in
             config.get('known_events',[])+[asdict(s) for s in applicable_specs(normalized(data),records)]}.values())
+    from pulse.valuations import saved_quotes
+    try:
+        saved = saved_quotes(data, root)
+    except (ValueError, TypeError, OSError):
+        saved = {}  # Optional quote corruption cannot block valid stock/fund accounting.
+    if saved:
+        config['derivative_quotes'] = dict(saved, **config.get('derivative_quotes', {}))
     return validate_private_config(config,data)
 
 def install_private_events(ns, config):
