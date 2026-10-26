@@ -10,7 +10,8 @@ from pulse.runner import run_analysis
 from pulse.synthetic import fixture
 from pulse.private_config import export_digest
 from pulse.valuations import saved_quotes
-from pulse.html_report import html_report
+from pulse.html_report import html_report,HTML_SCHEMA_VERSION
+from pulse.pdf import PDF_SCHEMA_VERSION
 
 
 @pytest.fixture(scope='module')
@@ -28,7 +29,7 @@ def app_for(example,monkeypatch,tmp_path):
     monkeypatch.setattr(st,'file_uploader',lambda *args,**kwargs:SimpleNamespace(getvalue=lambda:data))
     current=deepcopy(raw);current['synthetic']=False
     app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'streamlit_app.py'),default_timeout=30)
-    for key,value in dict(model=prepare(current,date(2026,9,30)),input_digest=export_digest(data),pdf=b'initial',html=b'initial',export_schema=(9,8)).items():app.session_state[key]=value
+    for key,value in dict(model=prepare(current,date(2026,9,30)),input_digest=export_digest(data),pdf=b'initial',html=b'initial',export_schema=(PDF_SCHEMA_VERSION,HTML_SCHEMA_VERSION)).items():app.session_state[key]=value
     app.run();assert not app.exception
     return app
 

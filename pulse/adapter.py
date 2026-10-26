@@ -6,7 +6,7 @@ import pandas as pd
 from pulse.core import build_snapshot_data
 from pulse.scopes import availability, blocker_message
 
-MODEL_SCHEMA_VERSION = 7
+MODEL_SCHEMA_VERSION = 8
 
 @dataclass(frozen=True)
 class Metric:
@@ -34,6 +34,8 @@ def number(value):
 def prepare(result, report_date=None, analysis_scope=None):
     report_date = report_date or date.today()
     complete_result=result
+    from pulse.derivative_display import manual_positions,valuation_summary
+    manual=manual_positions(complete_result,report_date)
     partial=result.get('unaffected_scope')
     # Preserve the full result for auditing and scope toggling. Only explicitly
     # localized accounting failures may supply a separate canonical projection.
@@ -215,7 +217,7 @@ def prepare(result, report_date=None, analysis_scope=None):
     risk=drawdown(nav,historical,returns_scope,not stock_blocked and history_ok and dividends_sound)
     forecast=forward_dividends(complete_result,composition_date,not stock_blocked and dividends_sound and not partial)
     from pulse.evidence import historical_evidence, dividend_evidence
-    return dict(history_evidence=historical_evidence(result),dividend_evidence=dividend_evidence(complete_result),drawdown=risk,forward_dividends=forecast,composition=composition_data,metrics=metrics,by_key=by_key,snapshot=snapshot,nav=nav,issues=list(dict.fromkeys(issues)),
+    return dict(manual_derivatives=manual,valuation_summary=valuation_summary(dependencies,manual),history_evidence=historical_evidence(result),dividend_evidence=dividend_evidence(complete_result),drawdown=risk,forward_dividends=forecast,composition=composition_data,metrics=metrics,by_key=by_key,snapshot=snapshot,nav=nav,issues=list(dict.fromkeys(issues)),
                 health='Review required' if blocked or income_blocked else 'Partial' if issues else 'Complete',
                 insights=insights[:5],periods=periods,raw=complete_result,valuation_missing=missing,
                 analysis_scope=analysis_scope,scope_label='Unaffected stocks & funds (partial)' if stock_scope and partial else 'Stocks & funds' if stock_scope else 'Full portfolio',
