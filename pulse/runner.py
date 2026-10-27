@@ -88,6 +88,9 @@ def validate_upload(data):
         raise AnalysisError('The file must be a valid UTF-8 CSV.') from None
 
 def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=300, engine_path=None, private_config=None, replay=None, capture=False):
+    from pulse.performance import Timings
+    timings=Timings()
+    workflow_started=time.perf_counter()
     if prices is None and replay is None and not uploads_enabled():
         raise AnalysisError('Real market-data processing requires the explicitly enabled local personal-use workflow or verified owner deployment.')
     if benchmark is not None:
@@ -99,7 +102,9 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=300, engine_
             raise AnalysisError('This benchmark has no explicitly defined synthetic data. Custom tickers are local personal-use only.')
         if prices is None and benchmark not in PRESETS and not uploads_enabled():
             raise AnalysisError('Custom benchmarks require the explicitly enabled local personal-use workflow.')
-    validate_upload(data)
+    with timings.stage('csv_validation'):
+        validate_upload(data)
+    evidence_started=time.perf_counter()
     try:
         if replay is None and prices is None and os.environ.get('FOLIOLENS_PERSONAL_REPLAY'):
             profile=Path(os.environ['FOLIOLENS_PERSONAL_REPLAY'])
@@ -113,6 +118,7 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=300, engine_
         private_config=validate_private_config(private_config,data)
     except (ValueError,TypeError,OSError):
         raise AnalysisError('Private event/valuation configuration is invalid or belongs to another export. Review its binding, dates and sources.') from None
+    timings.rows['private_evidence']={'calls':1,'wall_seconds':time.perf_counter()-evidence_started}
     started = time.perf_counter()
     with analysis_workspace() as work:
         work.joinpath('input.csv').write_bytes(data)
@@ -146,16 +152,22 @@ def run_analysis(data, *, benchmark='IWDA.AS', prices=None, timeout=300, engine_
         # Reserve output/cleanup time. Optional dividend reporting cannot spend
         # the time already consumed by required canonical analysis a second time.
         env['FOLIOLENS_FORECAST_DEADLINE']=str(time.monotonic()+max(0,timeout-10))
+        env['FOLIOLENS_WORKER_STARTED']=str(time.monotonic())
         try:
             returncode=execute_worker(command,work,env,timeout)
         except WorkerLimitError as exc:
             raise AnalysisError(str(exc)) from None
         if returncode or not (work/'result.json').exists():
             raise AnalysisError('Analysis could not validate this export. Check its format and accounting completeness.')
-        result = json.loads(work.joinpath('result.json').read_text(encoding='utf-8'))
+        with timings.stage('result_deserialization'):
+            result = json.loads(work.joinpath('result.json').read_text(encoding='utf-8'))
+            sidecar=work/'result.timing.json'
+            if sidecar.exists():result.setdefault('performance',{}).update(json.loads(sidecar.read_text(encoding='utf-8')))
     result['runtime_seconds'] = time.perf_counter()-started
     result['synthetic'] = prices is not None
     result['benchmark_enabled'] = benchmark is not None
     result['benchmark_name'] = result.get('benchmark_identity',{}).get('name') or benchmark_name(benchmark, prices is not None)
     result['benchmark_ticker'] = benchmark
+    result.setdefault('performance',{}).update(parent_stages=timings.rows,analysis_wall_seconds=time.perf_counter()-workflow_started,
+        mode='synthetic' if prices is not None else 'offline_replay' if replay is not None else 'live')
     return result

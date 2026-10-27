@@ -67,17 +67,34 @@ Canonical derivative FIFO, settlements and valuation arithmetic are retained.
 Yahoo's generic ISIN probe cannot establish a sufficiently reliable derivative
 identity, so a low-confidence result is diagnostic, not an accepted valuation.
 Unapproved non-Yahoo scrapers are disabled. After analysis, active positions appear
-under **Advanced: optional dated derivative valuations**. Select the instrument,
-enter a positive **EUR per-unit** observation, date and source, confirm the exact
-instrument/unit/date, then click **Analyze Portfolio**. No JSON editing is needed.
+under **Advanced: optional dated derivative valuations**, including when all are
+already valued. Edit prices together in the table. ISINs, descriptions and units
+are read-only. Blank date/source cells use the common defaults; existing evidence
+retains its original date/source unless explicitly replaced. Confirm the batch,
+optionally remember it encrypted locally, and click **Save and update portfolio**.
+Invalid rows retain their drafts and prevent the batch from being applied. Empty
+price cells leave existing evidence intact. No JSON editing is needed.
 Observations must be no more than seven calendar days old. Optional local
 remembering is encrypted and bound to exact instrument activity; expired/changed
 evidence is not reused. File-based private configuration remains supported.
 A captured observation date
 must not be represented as a verified exchange quote timestamp. Manual valuations
-are disclosed and keep data health partial. Without them, dependent tracked-value
+are disclosed separately from current valuation completeness. Without them, dependent tracked-value
 and lifetime-profit totals remain unavailable; independently valid returns/income
 remain available. No current derivative price is invented.
+
+Successful same-session manual updates rerun the canonical engine with the original
+captured market inputs and both HTTP transports blocked. A capture is bound to the
+exact export, benchmark and accounting evidence; it expires after four hours or a
+Berlin calendar-date change. Observation dates never advance on reuse. A missing,
+changed or expired capture requires a disclosed full-analysis fallback. An
+incomplete offline capture fails safely without silently requesting live data.
+Scope changes regenerate both reports without an engine run. Batch updates keep
+the selected scope; select **Full portfolio** to display its ecosystem KPIs.
+
+**Analysis timing diagnostics** contains only aggregate stage durations, CPU time
+and provider/request counts. Nested stages are inclusive and must not be summed.
+Server presentation construction is distinct from browser rendering latency.
 
 ## Benchmarks and currencies
 

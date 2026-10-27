@@ -116,11 +116,32 @@ def test_public_capture_replay_identity_history_fx(monkeypatch,tmp_path):
     history=one['_fetch_yahoo_history']('SPY','2025-01-06','2026-09-30')
     assert history[2]=='OK' and one['_foliolens_benchmark']['name']=='Resolved Test ETF (SPY)'
     path=tmp_path/'capture.json';path.write_text(json.dumps({'calls':one['_foliolens_capture']}))
-    monkeypatch.setenv('FOLIOLENS_REPLAY_PATH',str(path));two=fake_namespace();install_market(two)
+    import requests
+    from yfinance._http import requests as yf_requests
+    def unexpected_request(*a,**k):raise AssertionError('A test must not contact an external provider')
+    for cls in {requests.sessions.Session,yf_requests.Session}:monkeypatch.setattr(cls,'request',unexpected_request)
+    monkeypatch.setenv('FOLIOLENS_REPLAY_PATH',str(path));two=fake_namespace();two['requests']=requests;install_market(two)
     assert two['find_best_yahoo_ticker']('ZZ0000000001','Test','FUND')==resolve
     assert two['fetch_latest_yahoo_price']('TEST')==latest and two['get_fx_to_eur']('USD')==fx
     pd.testing.assert_frame_equal(two['_fetch_yahoo_history']('SPY','2025-01-06','2026-09-30')[0],history[0])
     assert two['_fetch_yahoo_history']('NOT_CAPTURED','2025-01-06','2026-09-30')[2]=='NOT_CAPTURED'
+    assert two['_foliolens_replay_missing']==1
+    for cls in {requests.sessions.Session,yf_requests.Session}:
+        with pytest.raises(RuntimeError,match='cannot request external'):
+            cls().get('https://query1.finance.yahoo.com/blocked')
+    assert two['_foliolens_transport']['requests']==0
+
+
+def test_first_run_batches_exact_historical_identities_without_changing_resolution(monkeypatch):
+    monkeypatch.delenv('FOLIOLENS_REPLAY_PATH',raising=False)
+    monkeypatch.setattr('pulse.market.install_transport_controls',lambda ns:{'requests':0})
+    ns=fake_namespace();calls=[];ns['prefetch_openfigi_identities']=lambda ids:calls.append(list(ids))
+    ns['enrich_holdings_with_dynamic_live_prices']=lambda holdings:holdings.copy()
+    install_market(ns)
+    frame=pd.DataFrame({'isin':['ZZ0000000001','ZZ0000000002','ZZ0000000001'], 'position_status':['ACTIVE','CLOSED','ACTIVE']})
+    pd.testing.assert_frame_equal(ns['enrich_holdings_with_dynamic_live_prices'](frame),frame)
+    assert calls==[['ZZ0000000001','ZZ0000000002']]
+    assert ns['enrich_holdings_with_dynamic_live_prices'](pd.DataFrame()).empty and len(calls)==1
 
 def test_public_owner_modes_fail_closed(monkeypatch):
     from pulse.mode import uploads_enabled
@@ -149,6 +170,9 @@ def test_provider_timeout_retry_and_rate_limit_stop(monkeypatch):
     with pytest.raises(RuntimeError):session.get('https://query2.finance.yahoo.com/anything')
     assert session.get('https://api.openfigi.com/v3/mapping').status_code==200
     assert state['restricted_providers']==['yahoo']
+    assert state['requests']==4 and state['retries']==1 and state['repeated_requests']==1
+    assert state['network_seconds']>=0 and state['network_cpu_seconds']>=0
+    assert state['providers']['yahoo']['requests']==3 and state['providers']['openfigi']['requests']==1
 
 def test_numeric_and_security_count_bounds():
     from pulse.synthetic import row,COLUMNS

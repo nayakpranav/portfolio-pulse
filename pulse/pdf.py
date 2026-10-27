@@ -21,7 +21,7 @@ def panel(c,x,y,width,height):
     c.setFillColor(HexColor(COLORS['surface']));c.setStrokeColor(GRID)
     c.setLineWidth(.4);c.roundRect(x,y,width,height,7,fill=1,stroke=1)
 
-PDF_SCHEMA_VERSION = 10
+PDF_SCHEMA_VERSION = 11
 
 
 def compact_return(value,width,font='Helvetica-Bold',size=8):
@@ -81,10 +81,11 @@ def summary_pdf(model):
     c.setFillColor(BG); c.rect(0,0,w,h,fill=1,stroke=0)
     _label(c,'FolioLens',28,h-37,25,WHITE,'Helvetica-Bold')
     _label(c,'Your investments, in focus.',29,h-53,9,MUTED)
-    _label(c,f"{'SYNTHETIC DEMO | ' if model['raw']['synthetic'] else 'PRIVATE FINANCIAL ANALYSIS | '}{model['health'].upper()}",w-28,h-28,8,CYAN,align='right')
+    _label(c,ascii_text(f"{'SYNTHETIC DEMO | ' if model['raw']['synthetic'] else 'PRIVATE FINANCIAL ANALYSIS | '}{model['report_status']['headline']}"),w-28,h-28,8,CYAN,align='right')
     tx = data['latest_transaction_date']; vd = data['valuation_date']
     _label(c,f"Generated {data['report_date']:%d %b %Y} | Transactions to {tx:%d %b %Y}" if tx else 'Transaction cutoff unavailable',w-28,h-44,7,MUTED,align='right')
-    _label(c,f'Stock/fund history to {vd:%d %b %Y}' if vd else 'Historical valuation unavailable',w-28,h-57,7,MUTED,align='right')
+    history_label=f'Stock/fund history to {vd:%d %b %Y}' if vd else 'Historical valuation unavailable'
+    _label(c,model['report_status']['quality']+' | '+history_label,w-28,h-57,7,MUTED,align='right')
     full=model['full_totals']
     value_text=f"EUR {full['value']:,.2f}" if full['value'] is not None else 'Unavailable'
     profit_text=f"EUR {full['profit']:,.2f}" if full['profit'] is not None else 'Unavailable'

@@ -31,7 +31,7 @@ def compare(source):
             data,prices=fixture(kind)
             old=run_analysis(data,prices=prices,engine_path=baseline)
             new=run_analysis(data,prices=prices)
-            for key in old.keys()-{'runtime_seconds'}:
+            for key in old.keys()-{'runtime_seconds','performance'}:
                 assert old[key]==new[key],f'{kind}: {key} differs'
             old_model,new_model=(prepare(r,date(2026,10,3)) for r in (old,new))
             assert old_model['metrics']==new_model['metrics']

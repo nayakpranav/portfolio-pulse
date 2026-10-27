@@ -48,10 +48,16 @@ backend storage access and remove stale workspaces; no secure RAM/disk erasure i
 promised. The original personal registry/metadata seed is not distributed.
 
 There are no shared portfolio objects or private `st.cache_data` entries. Provider
-objects/observations are cached within a single worker only. Models and PDF bytes
+objects are cached within a single worker only. A successful real analysis also
+retains its public market-input capture in that user's current Streamlit session
+for manual-only canonical recomputation (maximum four hours, same Berlin date).
+It is bound to an export/configuration digest and contains public market inputs,
+not the CSV or private confirmations. No shared or on-disk market cache is added.
+Actual observation dates/provenance remain unchanged. Both provider HTTP transports
+are disabled during replay. Models and PDF/HTML bytes
 remain in the current Streamlit session. Clear resets upload/model/PDF and event/
 manual-review state. Changing the uploaded export removes stale analysis and
-download state. Framework connection expiry/orphan-media cleanup controls eventual
+download state, the session capture and timing state. Framework connection expiry/orphan-media cleanup controls eventual
 in-memory retention. A deliberately copied PDF or external private config is not
 deleted by clearing the session. Avoid persistent shared volumes for private output.
 
@@ -85,6 +91,14 @@ No broker credentials or complete export is stored. Records are applied only to
 matching instrument activity and expire for valuation purposes after seven days.
 Hosted reviews are session-only. Clearing staged quotes retains explicitly saved
 local evidence. Generic packages and public tests never include these records.
+Batch persistence validates all observations before one atomic encrypted write;
+an unchanged batch does not rewrite or re-encrypt saved records. Failed/invalid
+batches keep drafts in the current session and do not change saved evidence.
+
+Performance instrumentation uses monotonic elapsed time and CPU counters. Only
+fixed stage names, durations and aggregate request/retry/repetition counts are
+exposed. Request equality fingerprints remain worker-local; URLs, request
+parameters, prices, response bodies and identifiers are not included in diagnostics.
 
 Tests cover independent workers/sessions, session-specific PDF bytes, clearing,
 export-bound confirmations, malformed/oversized input, provider failures and

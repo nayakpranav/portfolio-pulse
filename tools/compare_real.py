@@ -28,7 +28,7 @@ def compare(source,export,capture,config,benchmark='IWDA.AS'):
         baseline=Path(folder)/'baseline.py';baseline.write_text(code,encoding='utf-8')
         old=run_analysis(data,benchmark=benchmark,replay=captured,private_config=private,engine_path=baseline)
         new=run_analysis(data,benchmark=benchmark,replay=captured,private_config=private)
-    keys=old.keys()-{'runtime_seconds'}
+    keys=old.keys()-{'runtime_seconds','performance'}
     different=[key for key in keys if old[key]!=new[key]]
     # All unrounded canonical serialized financial fields, rows, statuses and diagnostics.
     assert not different,'Controlled outputs differ: '+', '.join(different)
