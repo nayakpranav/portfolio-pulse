@@ -9,7 +9,7 @@ from html import escape
 import secrets
 import pandas as pd
 from pulse.adapter import number
-from pulse.charts import wealth_range, benchmark_alias
+from pulse.charts import wealth_range, benchmark_alias, drawdown_legend, BENCHMARK_COLOR
 from pulse.design import CSS_TOKENS, KPI_CSS
 from pulse.pdf import monthly_amount, monthly_label
 from pulse.composition import COMPOSITION_CSS, composition_panel
@@ -17,7 +17,7 @@ from pulse.reporting import HOLDING_CSS, holding_cards, money, table_html, HOLDI
 from pulse.analytics import risk_summary, forward_display
 from pulse.intelligence_view import intelligence_html, INTELLIGENCE_CSS, INTELLIGENCE_SCRIPT
 
-HTML_SCHEMA_VERSION = 11
+HTML_SCHEMA_VERSION = 12
 SCRIPT = '''document.querySelectorAll('[data-period]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-period]').forEach(function(other){other.setAttribute('aria-pressed','false');});button.setAttribute('aria-pressed','true');document.getElementById('period-value').textContent=button.dataset.display;document.getElementById('period-dates').textContent=button.dataset.dates;});});'''
 SCRIPT += '''document.querySelectorAll('[data-view]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-view]').forEach(function(other){other.setAttribute('aria-pressed',String(other===button));var panel=document.getElementById(other.dataset.view+'-view');panel.hidden=other!==button;panel.setAttribute('aria-hidden',String(other!==button));});});});'''
 SCRIPT += INTELLIGENCE_SCRIPT
@@ -52,7 +52,7 @@ STYLE+=INTELLIGENCE_CSS
 def wealth_chart(model,include_capital=False):
     nav=model['nav'];series=[]
     if nav.empty:return '<p>Historical wealth unavailable — data requires review.</p>'
-    for col,color,label in [('stockfund_value_eur','#42cbea','Actual stock/fund wealth'),('benchmark_pme_value_eur','#397df5',benchmark_alias(model))]:
+    for col,color,label in [('stockfund_value_eur','#42cbea','Actual stock/fund wealth'),('benchmark_pme_value_eur',BENCHMARK_COLOR,benchmark_alias(model))]:
         if col in nav and (col!='benchmark_pme_value_eur' or model['by_key']['benchmark'].value is not None):series.append((list(nav[col]),color,label))
     if include_capital and model['intelligence']['capital']['available']:
         series.append(([r['capital_eur'] for r in model['intelligence']['capital']['series']],'#91a7bc','Cumulative net stock/fund capital invested'))
@@ -101,11 +101,11 @@ def drawdown_chart(model):
         svg.append(svg_text(f'{value:.1f}%',gx-10,y+4,fill='#91a7bc',font_size=10,text_anchor='end'))
     points=[(gx+gw*i/(len(rows)-1),gy+gh*r['drawdown_pct']/low) for i,r in enumerate(rows)]
     path=' '.join(f'{"M" if i==0 else "L"}{x:.3f},{y:.3f}' for i,(x,y) in enumerate(points))
-    svg.append(f'<path d="{path} L{gx+gw},{gy} L{gx},{gy} Z" fill="#42cbea" fill-opacity=".17"/>')
+    svg.append(f'<path d="{path} L{gx+gw},{gy} L{gx},{gy} Z" fill="#42cbea" fill-opacity=".11"/>')
     svg.append(f'<path d="{path}" fill="none" stroke="#42cbea" stroke-width="2.5"/>')
     if comparison['available']:
         benchmark=' '.join(f'{"M" if i==0 else "L"}{gx+gw*i/(len(rows)-1):.3f},{gy+gh*r["benchmark_drawdown_pct"]/low:.3f}' for i,r in enumerate(comparison['series']))
-        svg.append(f'<path d="{benchmark}" fill="none" stroke="#397df5" stroke-width="2" stroke-dasharray="8 5"><title>Benchmark EUR adjusted-return drawdown</title></path>')
+        svg.append(f'<path d="{benchmark}" fill="none" stroke="{BENCHMARK_COLOR}" stroke-width="2" stroke-dasharray="8 5"><title>Benchmark EUR adjusted-return drawdown</title></path>')
     svg.append(f'<path d="M{gx},{gy}H{gx+gw}" stroke="#91a7bc"/>')
     for i,((x,y),row) in enumerate(zip(points,rows)):
         caption=day(row['date'])+f": portfolio {row['drawdown_pct']:.2f}%"
@@ -117,8 +117,8 @@ def drawdown_chart(model):
     for fraction in (0,.5,1):
         row=rows[round((len(rows)-1)*fraction)]
         svg.append(svg_text(day(row['date']),gx+gw*fraction,238,fill='#91a7bc',font_size=10,text_anchor='start' if fraction==0 else 'end' if fraction==1 else 'middle'))
-    benchmark_summary=(f"Dashed blue · benchmark max: {comparison['maximum']:.2f}% | current: {comparison['current']:.2f}%. " if comparison['available'] else '')+comparison['note']
-    return ''.join(svg)+'</svg><p>'+text(risk_summary(risk))+'</p><p class="muted">Latest observation: '+day(risk['date'])+' · '+text(risk['scope'])+'</p><p class="muted">'+text(risk['note'])+'</p><p class="muted">'+text(benchmark_summary)+'</p>'
+    benchmark_summary=(f"Dashed gold · benchmark max: {comparison['maximum']:.2f}% | current: {comparison['current']:.2f}%. " if comparison['available'] else '')+comparison['note']
+    return drawdown_legend(model)+''.join(svg)+'</svg><p>'+text(risk_summary(risk))+'</p><p class="muted">Latest observation: '+day(risk['date'])+' · '+text(risk['scope'])+'</p><p class="muted">'+text(risk['note'])+'</p><p class="muted">'+text(benchmark_summary)+'</p>'
 
 
 def income_chart(months):

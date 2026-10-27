@@ -238,3 +238,31 @@ def test_optional_dashboard_controls_do_not_run_engine_or_change_batch(canonical
     assert not app.exception and len(app.metric)==8
     next(b for b in app.button if b.label=='Clear session results').click().run()
     assert not app.exception and not app.session_state.to_dict().get('intelligence_show')
+
+
+def test_polished_drawdown_legend_and_cash_interest_are_display_only(canonical_results):
+    from pulse.charts import drawdown_legend, BENCHMARK_COLOR
+    from pulse.html_report import drawdown_chart,wealth_chart
+    m=prepare(canonical_results['demo'],date(2026,9,30),'full_portfolio')
+    original=deepcopy(m['intelligence']);a=m['intelligence']['attribution']
+    cash=next(r['value'] for r in a['components'] if r['component']=='Recognized net interest')
+    assert sum(r['contribution'] for r in a['groups'])+cash==pytest.approx(a['authoritative'],abs=1e-7)
+    h=drawdown_chart(m)
+    assert h.index('drawdown-legend')<h.index('<svg')
+    assert 'Portfolio Drawdown' in h and 'Benchmark Drawdown' in h
+    assert f'stroke="{BENCHMARK_COLOR}"' in h and 'stroke-dasharray="8 5"' in h
+    assert 'fill-opacity=".11"' in h and 'role="listitem"' in h
+    assert f'stroke="{BENCHMARK_COLOR}"' in wealth_chart(m)
+    view=intelligence_html(m)
+    assert 'Non-security cash interest' in view and f'€{cash:,.2f}' in view
+    assert m['intelligence']==original
+    m['intelligence']['benchmark_risk']['available']=False
+    assert 'Benchmark Drawdown' not in drawdown_legend(m)
+
+
+def test_drawdown_legend_uses_selected_verified_identity_and_escapes():
+    from pulse.charts import drawdown_legend
+    m=dict(raw=dict(benchmark_enabled=True,benchmark_ticker='IWDA.AS'),intelligence=dict(benchmark_risk=dict(available=True)))
+    assert 'MSCI World Benchmark Drawdown (IWDA.AS)' in drawdown_legend(m)
+    m['raw'].update(benchmark_ticker='CUSTOM',benchmark_name='<img src=x onerror=1>')
+    h=drawdown_legend(m);assert '<img' not in h and '&lt;img' in h and 'CUSTOM' in h

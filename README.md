@@ -17,11 +17,10 @@ The v1.0.5 presentation uses two KPI tiers, prominent holding rankings and a
 consistent navy/cyan/mint identity across dashboard, PDF and offline HTML.
 [Report design and scope](docs/REPORTS.md).
 
-The v1.0.14 development branch adds optional [Portfolio Intelligence](docs/PORTFOLIO_INTELLIGENCE.md):
+FolioLens Personal v1.0.14 adds optional [Portfolio Intelligence](docs/PORTFOLIO_INTELLIGENCE.md):
 reconciled lifetime profit attribution, nominal effective holdings, qualified
 underlying allocation, capital deployment, benchmark drawdown and income yields.
-It uses existing results without additional market-data requests. Stable v1.0.13
-remains the production personal application pending review of this development build.
+It uses existing results without additional market-data requests. The release preserves the canonical engine and the fast manual valuation workflow.
 
 ## Windows one-click personal application
 

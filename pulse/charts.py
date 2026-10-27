@@ -1,7 +1,22 @@
 """Shared presentation range; never changes the underlying wealth series."""
 import math
 
-CHART_SCHEMA_VERSION = 2
+CHART_SCHEMA_VERSION = 3
+PORTFOLIO_COLOR = '#42cbea'
+BENCHMARK_COLOR = '#f4d35e'
+
+
+def drawdown_legend(model):
+    """Shared responsive text + line legend; decorative swatches never convey identity alone."""
+    from html import escape
+    items=[('Portfolio Drawdown',PORTFOLIO_COLOR,'solid')]
+    if model['intelligence']['benchmark_risk']['available']:
+        alias=benchmark_alias(model)
+        label=('MSCI World Benchmark Drawdown (IWDA.AS)' if alias=='MSCI World ETF (IWDA.AS)'
+               else alias+' — Benchmark Drawdown')
+        items.append((label,BENCHMARK_COLOR,'dashed'))
+    return '<div class="drawdown-legend" role="list" aria-label="Drawdown series" style="display:flex;flex-wrap:wrap;gap:12px 24px;margin:14px 0;color:#f6f9fd;font-size:.95rem">'+''.join(
+        '<span role="listitem" style="display:inline-flex;align-items:center;gap:9px;min-width:0"><i aria-hidden="true" style="display:inline-block;flex-shrink:0;width:30px;border-top:3px '+dash+' '+color+'"></i><span>'+escape(label)+'</span></span>' for label,color,dash in items)+'</div>'
 
 def wealth_range(values):
     finite = [float(v) for v in values if v is not None and math.isfinite(float(v))]

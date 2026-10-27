@@ -1,9 +1,9 @@
-# Portfolio Intelligence — v1.0.14 development
+# Portfolio Intelligence — v1.0.14
 
 Baseline: stable v1.0.13, commit `50c14df7a1037b860692e0a4304df441bcfb837a`.
 This is an optional research presentation over existing canonical outputs. It does
 not replace the eight headline metrics, initiate provider requests, or change the
-126 retained V6.7.8 definitions. Production promotion requires owner review.
+126 retained V6.7.8 definitions. The owner has approved production promotion.
 
 ## Profit attribution
 
@@ -118,7 +118,7 @@ covariance and correlation-adjusted contributions need complete overlapping obse
 histories and cannot be inferred from this aggregate index. No new risk scores,
 optimization, Greeks, VaR or trading signals are included here.
 
-## Development validation
+## Validation
 
 - Full local regression: **401 passed** (stable coverage plus 45 new cases).
 - Nine canonical synthetic comparisons pass; all **126** retained definitions are

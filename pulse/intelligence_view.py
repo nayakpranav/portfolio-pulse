@@ -43,7 +43,10 @@ def sections(model,offline=True):
     data=model['intelligence'];a=data['attribution'];c=data['capital'];risk=data['benchmark_risk'];income=data['income'];under=data['underlying']
     profit=facts([('Authoritative full lifetime profit',money(a['authoritative'])),('Component bridge','Reconciled' if a['available'] else 'Incomplete'),('Stock/fund scope',model['returns_scope_label'])])
     profit+=table(a['components'],[('component','Canonical component','text'),('value','EUR','money')])
-    profit+='<p class="intel-note">'+text(a['note'])+'</p>'+table(a['groups'],[('group','Historical position group','text'),('securities','Instruments','number'),('contribution','Lifetime contribution','money')])
+    cash_interest=next(r['value'] for r in a['components'] if r['component']=='Recognized net interest')
+    display_groups=a['groups']+[dict(group='Non-security cash interest',securities=0,contribution=cash_interest)]
+    profit+='<p class="intel-note">'+text(a['note'])+'</p>'+table(display_groups,[('group','Historical position group','text'),('securities','Instruments','number'),('contribution','Lifetime contribution','money')])
+    profit+='<p class="intel-note">Security groups plus non-security cash interest reconcile to lifetime economic profit when complete. Cash interest is the same canonical component shown above, not an additional amount to add twice.</p>'
     profit+='<h3>Largest '+('known ' if a['rankings_partial'] else '')+'lifetime winners and detractors</h3>'
     profit+=table(a['winners']+a['detractors'],[('name','Security','text'),('position_status','Position','text'),('contribution','Lifetime contribution','money')])
     if offline:profit+='<details><summary>All historical security contributions · sortable</summary>'+table(a['rows'],CONTRIBUTION_COLUMNS,True)+'</details>'
