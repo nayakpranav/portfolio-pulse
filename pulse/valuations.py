@@ -101,20 +101,30 @@ def saved_quotes(data, root=None):
 
 
 def remember_quote(data, isin, quote):
+    return remember_quotes(data,{isin:quote})
+
+
+def remember_quotes(data, quotes):
+    """Validate the complete batch before one atomic, idempotent DPAPI write."""
     from pulse.profile import configured_root, _protect, _atomic, _lock
     from pulse.private_config import validate_private_config, export_digest
     root = configured_root()
     if root is None:
         return False  # Hosted evidence is session-only, never a global registry.
-    validate_private_config({'export_sha256': export_digest(data), 'derivative_quotes': {isin: quote}}, data)
-    if quote_status(quote) != 'MANUAL_CONFIRMED':
-        raise ValueError('Only a recent, dated EUR-per-unit observation can be remembered.')
-    record = dict(isin=isin, activity_sha256=activity_anchor(data, isin, quote['date']), quote=dict(quote))
+    validate_private_config({'export_sha256': export_digest(data), 'derivative_quotes': quotes}, data)
+    records=[]
+    for isin,quote in quotes.items():
+        if quote_status(quote) != 'MANUAL_CONFIRMED':
+            raise ValueError('Only a recent, dated EUR-per-unit observation can be remembered.')
+        records.append(dict(isin=isin, activity_sha256=activity_anchor(data, isin, quote['date']), quote=dict(quote)))
     with _lock:
-        rows = [r for r in _read(root) if (r['isin'], r['activity_sha256']) != (isin, record['activity_sha256'])]
-        if len(rows) >= 100:
+        original=_read(root)
+        if all(record in original for record in records):return True
+        keys={(r['isin'],r['activity_sha256']) for r in records}
+        rows = [r for r in original if (r['isin'], r['activity_sha256']) not in keys]
+        if len(rows)+len(records)>100:
             raise ValueError('Saved valuation evidence exceeds limit.')
-        rows.append(record)
+        rows.extend(records)
         _atomic(root/'derivative-valuations.dat', _protect(json.dumps(rows, allow_nan=False).encode()))
     return True
 

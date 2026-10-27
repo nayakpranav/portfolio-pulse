@@ -1,11 +1,14 @@
 """Non-accounting worker hooks: price inputs and a small canonical output contract."""
 import json
 import os
+import time
 from pathlib import Path
 import pandas as pd
 import numpy as np
 
 def install_hooks(ns):
+    ns['_foliolens_worker_started'] = time.perf_counter()
+    ns['_foliolens_worker_cpu_started'] = time.process_time()
     # No additive sector metadata is needed by Pulse; never copy private seed data.
     ns['fetch_yahoo_security_metadata'] = lambda ticker: {}
     config = json.loads(Path(os.environ['PULSE_PRICE_INPUT']).read_text()) if os.environ.get('PULSE_PRICE_INPUT') else None
@@ -77,6 +80,9 @@ def install_hooks(ns):
                 return pd.DataFrame(), 'EUR','DISABLED','Comparison disabled by user'
             return original(ticker,start_date,end_date)
         ns['_fetch_yahoo_history'] = without_benchmark
+    from pulse.performance import install
+    install(ns)
+    ns['_foliolens_startup_seconds'] = max(0., time.monotonic()-float(os.environ.get('FOLIOLENS_WORKER_STARTED',time.monotonic())))
 
 def serialize(value):
     if isinstance(value,pd.DataFrame):
@@ -94,6 +100,8 @@ def serialize(value):
     return value
 
 def write_results(ns):
+    timings=ns['_foliolens_timings']
+    serialization_started=time.perf_counter()
     names = ['lifetime_metrics','advanced_metrics','historical_metrics','accounting_status','dividends','interest',
              'holdings','daily_nav_history','period_performance','wealth_contribution','pre_diagnostics',
              'transaction_support_matrix','valuation_diagnostics','corporate_action_audit',
@@ -112,6 +120,7 @@ def write_results(ns):
     result['latest_transaction_date'] = serialize(ns['max_date'])
     result['benchmark_identity']=ns.get('_foliolens_benchmark',{})
     result['provider_diagnostics']=ns.get('_foliolens_transport',{})
+    result['replay_missing_inputs']=ns.get('_foliolens_replay_missing',0)
     result['fx_observations']=ns.get('_foliolens_fx',{})
     result['active_derivatives']=serialize(ns.get('active_derivatives',pd.DataFrame()))
     from pulse.valuations import diagnostic_rows
@@ -132,14 +141,24 @@ def write_results(ns):
     result['review_transactions']=review_rows
     from pulse.forward import forward_source
     try:
-        result['forward_dividends']=forward_source(ns)
+        with timings.stage('forward_dividend_reporting'):
+            result['forward_dividends']=forward_source(ns)
     except Exception:
         # An optional forecast must never suppress completed financial results
         # or leak a provider exception containing private holdings.
         result['forward_dividends']={'status':'UNAVAILABLE','diagnostic':'Canonical dividend reporting inputs could not be validated.'}
     if os.environ.get('FOLIOLENS_CAPTURE')=='1':
         result['market_capture']={'calls':ns.get('_foliolens_capture',{}),'benchmark':ns.get('_foliolens_benchmark',{})}
+    result['performance']={'worker_stages':timings.rows,
+        'worker_wall_seconds':time.perf_counter()-ns['_foliolens_worker_started'],
+        'worker_cpu_seconds':time.process_time()-ns['_foliolens_worker_cpu_started'],
+        'worker_startup_seconds':ns['_foliolens_startup_seconds'],
+        'result_preparation_seconds':time.perf_counter()-serialization_started}
+    serialization_started=time.perf_counter()
     Path(os.environ['PULSE_RESULT_PATH']).write_text(json.dumps(result,allow_nan=False),encoding='utf-8')
+    # Sidecar avoids recursively including the time spent serializing itself.
+    Path(os.environ['PULSE_RESULT_PATH']).with_suffix('.timing.json').write_text(json.dumps(
+        {'result_serialization_seconds':time.perf_counter()-serialization_started}),encoding='utf-8')
 
 
 def trade_amount_audit(ns):

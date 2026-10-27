@@ -239,7 +239,7 @@ def test_hot_deployment_refreshes_presentation_helpers_and_paired_reports(report
     assert charts.benchmark_alias(model).startswith('Synthetic MSCI World ETF')
     assert 'stale holding presentation' not in app.session_state['html'].decode()
     assert 'width:32px' in app.session_state['html'].decode()
-    assert app.session_state['export_schema']==(10,9)
+    assert app.session_state['export_schema']==(exported_pdf.PDF_SCHEMA_VERSION,exported_html.HTML_SCHEMA_VERSION)
     assert synthetic.fixture()[1]['dividend_snapshots']
     assert len(app.metric)==8 and app.session_state['pdf'].startswith(b'%PDF')
 

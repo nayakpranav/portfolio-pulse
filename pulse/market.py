@@ -5,6 +5,7 @@ historical reconstruction and PME are called unchanged.
 """
 from datetime import date
 import json
+import hashlib
 import logging
 import math
 import os
@@ -23,7 +24,8 @@ def install_transport_controls(ns):
     """Clamp requests; stop immediately on access restrictions, never evade them."""
     import requests
     from yfinance._http import requests as yf_requests
-    state={'requests':0,'restricted_providers':[]}
+    state={'requests':0,'restricted_providers':[],'retries':0,'repeated_requests':0,'network_seconds':0.,'network_cpu_seconds':0.,'providers':{}}
+    seen=set()
     classes=set([requests.sessions.Session,yf_requests.Session])
     timeout_types=(requests.exceptions.Timeout,TimeoutError,getattr(yf_requests.exceptions,'Timeout',TimeoutError))
     for cls in classes:
@@ -44,6 +46,15 @@ def install_transport_controls(ns):
                 if state['requests']>=800:raise RuntimeError('Provider request budget exceeded')
                 if time.monotonic()>=state.get('forecast_deadline',float('inf')):raise RuntimeError('Dividend reporting request budget exceeded')
                 state['requests']+=1
+                if attempt:state['retries']+=1
+                # Equality fingerprints stay worker-local. Never export URLs,
+                # request parameters, headers, response bodies or identifiers.
+                fingerprint=hashlib.sha256(repr((method,str(url),kwargs.get('params'),kwargs.get('json'))).encode()).digest()
+                if fingerprint in seen:state['repeated_requests']+=1
+                seen.add(fingerprint)
+                row=state['providers'].setdefault(provider,{'requests':0,'wall_seconds':0.,'cpu_seconds':0.})
+                row['requests']+=1
+                wall,cpu=time.perf_counter(),time.thread_time()
                 try:
                     response=_original(self,method,url,**kwargs)
                     if response.status_code in {401,403,429,999}:
@@ -54,6 +65,10 @@ def install_transport_controls(ns):
                 except timeout_types:
                     if attempt: raise
                     time.sleep(.25)
+                finally:
+                    elapsed,used=time.perf_counter()-wall,time.thread_time()-cpu
+                    state['network_seconds']+=elapsed;state['network_cpu_seconds']+=used
+                    row['wall_seconds']+=elapsed;row['cpu_seconds']+=used
         cls.request=controlled
     # Suppress provider log payloads; worker stdout/stderr are discarded too.
     logging.getLogger('yfinance').disabled=True
@@ -92,10 +107,24 @@ def install_market(ns):
             if symbol not in tickers:tickers[symbol]=ticker_factory(symbol,*args,**kwargs)
             return tickers[symbol]
         ns['yf'].Ticker=ticker
+        original_enrich=ns.get('enrich_holdings_with_dynamic_live_prices')
+        if original_enrich:
+            def enrich(holdings):
+                # Canonical history later resolves closed as well as active
+                # positions. Batch the same exact identities up front instead
+                # of one throttled OpenFIGI request per closed instrument.
+                if not holdings.empty and 'isin' in holdings:
+                    ns['prefetch_openfigi_identities'](holdings['isin'].dropna().unique())
+                return original_enrich(holdings)
+            ns['enrich_holdings_with_dynamic_live_prices']=enrich
     else:
         def blocked(*args,**kwargs): raise RuntimeError('Replay cannot request external data')
         ns['yf'].Ticker=blocked
         ns['requests'].sessions.Session.request=blocked
+        from yfinance._http import requests as yf_requests
+        yf_requests.Session.request=blocked
+        ns['_foliolens_transport']={'requests':0,'restricted_providers':[],'retries':0,'repeated_requests':0,'network_seconds':0.,'network_cpu_seconds':0.,'providers':{}}
+    ns['_foliolens_replay_missing']=0
 
     def store_call(kind, args, producer):
         key=json.dumps([kind,*args],sort_keys=True,default=str)
@@ -103,7 +132,9 @@ def install_market(ns):
             return capture[key]
         if replay is not None:
             # Missing captured inputs are never replaced with a new live observation.
-            if key not in replay['calls']: raise RuntimeError('Required captured market input unavailable')
+            if key not in replay['calls']:
+                ns['_foliolens_replay_missing']+=1
+                raise RuntimeError('Required captured market input unavailable')
             value=replay['calls'][key]
         else:
             value=serialize(producer())
@@ -202,7 +233,11 @@ def install_market(ns):
                 return [[],currency,'UNKNOWN_CURRENCY','Historical currency unavailable',None]
             return [serialize(frame.reset_index(names='date')) if not frame.empty else [],currency,status,'Provider history unavailable' if error else '',None]
         try:
-            rows,currency,status,error,meta=store_call('history',[ticker,start,end],produce)
+            timings=ns.get('_foliolens_timings')
+            if timings and ticker==ns['BENCHMARK_TICKER']:
+                with timings.stage('benchmark_processing'):
+                    rows,currency,status,error,meta=store_call('history',[ticker,start,end],produce)
+            else:rows,currency,status,error,meta=store_call('history',[ticker,start,end],produce)
         except RuntimeError:
             if replay is None:raise
             if ticker==ns['BENCHMARK_TICKER']:
