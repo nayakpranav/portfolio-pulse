@@ -15,10 +15,13 @@ from pulse.pdf import monthly_amount, monthly_label
 from pulse.composition import COMPOSITION_CSS, composition_panel
 from pulse.reporting import HOLDING_CSS, holding_cards, money, table_html, HOLDING_EXPLANATION
 from pulse.analytics import risk_summary, forward_display
+from pulse.intelligence_view import intelligence_html, INTELLIGENCE_CSS, INTELLIGENCE_SCRIPT
 
-HTML_SCHEMA_VERSION = 10
+HTML_SCHEMA_VERSION = 11
 SCRIPT = '''document.querySelectorAll('[data-period]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-period]').forEach(function(other){other.setAttribute('aria-pressed','false');});button.setAttribute('aria-pressed','true');document.getElementById('period-value').textContent=button.dataset.display;document.getElementById('period-dates').textContent=button.dataset.dates;});});'''
 SCRIPT += '''document.querySelectorAll('[data-view]').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('[data-view]').forEach(function(other){other.setAttribute('aria-pressed',String(other===button));var panel=document.getElementById(other.dataset.view+'-view');panel.hidden=other!==button;panel.setAttribute('aria-hidden',String(other!==button));});});});'''
+SCRIPT += INTELLIGENCE_SCRIPT
+SCRIPT += '''document.querySelectorAll('[data-capital-toggle]').forEach(function(button){button.addEventListener('click',function(){var show=button.getAttribute('aria-pressed')!=='true';button.setAttribute('aria-pressed',String(show));['wealth-base','wealth-capital'].forEach(function(id,i){var panel=document.getElementById(id),hidden=i===0?show:!show;panel.hidden=hidden;panel.setAttribute('aria-hidden',String(hidden));});});});'''
 STYLE = CSS_TOKENS+'''[hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;background:var(--fl-background);color:var(--fl-text);font:16px/1.55 system-ui,sans-serif}main{max-width:1300px;margin:auto;padding:32px}
 h1{font-size:2.5rem;letter-spacing:-1px;margin:0}h2{font-size:1.3125rem;letter-spacing:-.2px;margin:28px 0 12px}h3{font-size:1rem;margin:0 0 8px}p{margin:8px 0}.muted,small{color:var(--fl-muted)}
 header{display:flex;justify-content:space-between;gap:24px;align-items:start;padding-bottom:16px;border-bottom:1px solid var(--fl-border)}.report-meta{text-align:right;font-size:.85rem}.badge{display:inline-block;border:1px solid var(--fl-border);border-radius:20px;padding:5px 12px;color:var(--fl-actual)}.scope-note{color:var(--fl-muted);font-size:.875rem;margin-top:16px;overflow-wrap:anywhere}
@@ -43,11 +46,16 @@ def svg_text(value,x,y,**attrs):
     attributes=' '.join(f'{key.rstrip("_").replace("_","-")}="{text(val)}"' for key,val in attrs.items())
     return f'<text x="{x}" y="{y}" {attributes}>{text(value)}</text>'
 
-def wealth_chart(model):
+STYLE+=INTELLIGENCE_CSS
+
+
+def wealth_chart(model,include_capital=False):
     nav=model['nav'];series=[]
     if nav.empty:return '<p>Historical wealth unavailable — data requires review.</p>'
     for col,color,label in [('stockfund_value_eur','#42cbea','Actual stock/fund wealth'),('benchmark_pme_value_eur','#397df5',benchmark_alias(model))]:
         if col in nav and (col!='benchmark_pme_value_eur' or model['by_key']['benchmark'].value is not None):series.append((list(nav[col]),color,label))
+    if include_capital and model['intelligence']['capital']['available']:
+        series.append(([r['capital_eur'] for r in model['intelligence']['capital']['series']],'#91a7bc','Cumulative net stock/fund capital invested'))
     values=[number(v) for seq,_,_ in series for v in seq if number(v) is not None]
     if not values:return '<p>Historical wealth unavailable — data requires review.</p>'
     low,high=wealth_range(values);w,h=600,260;gx,gy,gw,gh=90,20,488,190
@@ -71,14 +79,21 @@ def wealth_chart(model):
     for frac in (0,.25,.5,.75,1):
         index=round((len(nav)-1)*frac);svg.append(svg_text(day(nav.iloc[index]['date']),gx+gw*frac,238,fill='#91a7bc',font_size=8,class_='minor-tick' if frac in (.25,.75) else 'major-tick',text_anchor='start' if frac==0 else 'end' if frac==1 else 'middle'))
     svg.append('</svg>')
-    legend=''.join('<span><i class="legend-line'+(' benchmark' if i else '')+'" aria-hidden="true"></i>'+text(label)+'</span>' for i,(_,color,label) in enumerate(series))
-    endpoints=''.join('<span>'+text(('Actual' if i==0 else 'Benchmark')+': '+money(seq[-1]))+'</span>' for i,(seq,_,label) in enumerate(series))
+    legend=''.join('<span><i class="legend-line'+(' benchmark' if i else '')+'" style="border-color:'+color+'" aria-hidden="true"></i>'+text(label)+'</span>' for i,(_,color,label) in enumerate(series))
+    endpoints=''.join('<span>'+text(label+': '+money(seq[-1]))+'</span>' for seq,_,label in series)
     return '<div class="legend">'+legend+'</div>'+''.join(svg)+'<p class="muted">Wealth (EUR) · padded axis'+(' · axis does not start at zero' if low!=0 else ' · axis starts at zero')+'</p><div class="endpoint-row">'+endpoints+'</div><details class="comparison-details"><summary>Benchmark identity and comparison</summary><p>'+text(model['raw'].get('benchmark_name','No comparison'))+'</p><p>Exact selected instrument · EUR conversion · cash-flow-matched benchmark MWR. '+text(model['by_key']['benchmark'].status.replace('_',' ').capitalize())+'.</p></details>'
+
+def wealth_views(model):
+    base=wealth_chart(model);capital=model['intelligence']['capital']
+    if not capital['available']:return base
+    return '<button type="button" data-capital-toggle aria-pressed="false" aria-controls="wealth-base wealth-capital">Cumulative net stock/fund capital invested</button><div id="wealth-base" aria-hidden="false">'+base+'</div><div id="wealth-capital" hidden aria-hidden="true">'+wealth_chart(model,True)+'<p class="muted">'+text(capital['note'])+'</p></div>'
+
 
 def drawdown_chart(model):
     risk=model['drawdown']
     if not risk['available']:return '<p>'+text(risk['note'])+'</p>'
-    rows=risk['series'];low=min(-1,risk['maximum']*1.15);gx,gy,gw,gh=90,25,488,180
+    comparison=model['intelligence']['benchmark_risk']
+    rows=risk['series'];low=min(-1,risk['maximum']*1.15,(comparison['maximum'] or 0)*1.15);gx,gy,gw,gh=90,25,488,180
     svg=['<svg class="chart wealth-chart drawdown-chart" role="img" aria-label="Cash-flow-adjusted stock/fund TWR drawdown, percent" viewBox="0 0 600 260" xmlns="http://www.w3.org/2000/svg">']
     for fraction in (0,.25,.5,.75,1):
         y=gy+gh*fraction;value=0 if fraction==0 else low*fraction
@@ -88,13 +103,22 @@ def drawdown_chart(model):
     path=' '.join(f'{"M" if i==0 else "L"}{x:.3f},{y:.3f}' for i,(x,y) in enumerate(points))
     svg.append(f'<path d="{path} L{gx+gw},{gy} L{gx},{gy} Z" fill="#42cbea" fill-opacity=".17"/>')
     svg.append(f'<path d="{path}" fill="none" stroke="#42cbea" stroke-width="2.5"/>')
+    if comparison['available']:
+        benchmark=' '.join(f'{"M" if i==0 else "L"}{gx+gw*i/(len(rows)-1):.3f},{gy+gh*r["benchmark_drawdown_pct"]/low:.3f}' for i,r in enumerate(comparison['series']))
+        svg.append(f'<path d="{benchmark}" fill="none" stroke="#397df5" stroke-width="2" stroke-dasharray="8 5"><title>Benchmark EUR adjusted-return drawdown</title></path>')
     svg.append(f'<path d="M{gx},{gy}H{gx+gw}" stroke="#91a7bc"/>')
-    for (x,y),row in zip(points,rows):
-        svg.append(f'<circle cx="{x:.3f}" cy="{y:.3f}" r="3" fill="transparent"><title>'+text(day(row['date'])+f": {row['drawdown_pct']:.2f}%")+'</title></circle>')
+    for i,((x,y),row) in enumerate(zip(points,rows)):
+        caption=day(row['date'])+f": portfolio {row['drawdown_pct']:.2f}%"
+        if comparison['available']:
+            value=comparison['series'][i]['benchmark_drawdown_pct'];by=gy+gh*value/low
+            caption+=f"; benchmark {value:.2f}%"
+            svg.append(f'<circle cx="{x:.3f}" cy="{by:.3f}" r="3" fill="transparent"><title>'+text(caption)+'</title></circle>')
+        svg.append(f'<circle cx="{x:.3f}" cy="{y:.3f}" r="3" fill="transparent"><title>'+text(caption)+'</title></circle>')
     for fraction in (0,.5,1):
         row=rows[round((len(rows)-1)*fraction)]
         svg.append(svg_text(day(row['date']),gx+gw*fraction,238,fill='#91a7bc',font_size=10,text_anchor='start' if fraction==0 else 'end' if fraction==1 else 'middle'))
-    return ''.join(svg)+'</svg><p>'+text(risk_summary(risk))+'</p><p class="muted">Latest observation: '+day(risk['date'])+' · '+text(risk['scope'])+'</p><p class="muted">'+text(risk['note'])+'</p>'
+    benchmark_summary=(f"Dashed blue · benchmark max: {comparison['maximum']:.2f}% | current: {comparison['current']:.2f}%. " if comparison['available'] else '')+comparison['note']
+    return ''.join(svg)+'</svg><p>'+text(risk_summary(risk))+'</p><p class="muted">Latest observation: '+day(risk['date'])+' · '+text(risk['scope'])+'</p><p class="muted">'+text(risk['note'])+'</p><p class="muted">'+text(benchmark_summary)+'</p>'
 
 
 def income_chart(months):
@@ -142,7 +166,7 @@ def html_report(model):
         if index==4:parts.append('</section><section class="metrics metrics-secondary" aria-label="Performance and income metrics">')
         value=number(m.value);attr=f' data-value="{value!r}"' if value is not None else ''
         parts.append('<article class="metric" data-metric="'+text(m.key)+'"'+attr+'><h2>'+text(m.label)+'</h2><div class="metric-value">'+text(m.display)+'</div><small>'+text(m.scope)+'</small>'+('<small>'+text(m.status.replace('_',' ').capitalize())+'</small>' if value is None else '')+'<details><summary>What this means</summary><p>'+text(m.explanation)+'</p></details></article>')
-    parts.append('</section><section class="panel"><h2>Portfolio versus Benchmark</h2><p class="muted">'+text(model.get('returns_scope_label','Stocks & funds'))+' · cash and derivatives excluded</p><div class="period-controls" role="group" aria-label="Historical chart view"><button type="button" data-view="wealth" aria-controls="wealth-view" aria-pressed="true">Wealth (EUR)</button><button type="button" data-view="drawdown" aria-controls="drawdown-view" aria-pressed="false">Drawdown (%)</button></div><div id="wealth-view" aria-hidden="false">'+wealth_chart(model)+'</div><div id="drawdown-view" hidden aria-hidden="true">'+drawdown_chart(model)+'</div>')
+    parts.append('</section><section class="panel"><h2>Portfolio versus Benchmark</h2><p class="muted">'+text(model.get('returns_scope_label','Stocks & funds'))+' · cash and derivatives excluded</p><div class="period-controls" role="group" aria-label="Historical chart view"><button type="button" data-view="wealth" aria-controls="wealth-view" aria-pressed="true">Wealth (EUR)</button><button type="button" data-view="drawdown" aria-controls="drawdown-view" aria-pressed="false">Drawdown (%)</button></div><div id="wealth-view" aria-hidden="false">'+wealth_views(model)+'</div><div id="drawdown-view" hidden aria-hidden="true">'+drawdown_chart(model)+'</div>')
     parts.append('<div class="period-component"><div class="period-top"><h2>Cumulative Period Performance</h2><div class="period-controls">')
     for key in ('1M','3M','YTD','1Y','MAX'):
         r=next((r for r in model['periods'] if r['period_key']==key),None)
@@ -152,7 +176,7 @@ def html_report(model):
     maximum=next((r for r in model['periods'] if r['period_key']=='MAX'),None)
     parts.append('</div></div><p id="period-value" class="period-value">'+(f'MAX · {maximum["portfolio_twr_pct"]:.2f}%' if maximum else 'MAX · Unavailable')+'</p><p id="period-dates" class="muted">'+(day(maximum['effective_start_date'])+' to '+day(maximum['end_date']) if maximum else 'Reliable performance unavailable.')+'</p><p class="muted">Period TWR is cumulative and adjusts for cash flows. MWR is annualized; headline TWR is since inception. Cash and derivatives are excluded. Period controls change TWR only; the wealth chart retains its full available history.</p></div></section>')
     parts.append('<section class="panel"><h2>Investment Income · '+str(snap['year'])+'</h2><p class="muted">Recognized net investment income · dividends + interest</p><div class="income-layout"><div>'+income_chart(snap['months'])+'</div><aside class="income-facts"><p><span class="muted">Net dividends YTD</span><br><span class="income-number">'+money(snap['ytd_dividends'])+'</span></p><p><span class="muted">Net interest YTD</span><br><span class="income-number">'+money(snap['ytd_interest'])+'</span></p><p><span class="muted">'+text(model['forward_dividends']['label'])+'</span><br><span class="income-number">'+text(forward_display(model['forward_dividends']))+'</span><br><small>'+text(model['forward_dividends']['status'])+'</small></p><p class="muted income-note">'+text(model['forward_dividends']['note'])+'</p><p class="muted income-note">Solid = covered month-end · outline = partial · dash = uncovered, not zero. Reinvested dividend income is recognized once.</p></aside></div></section><section class="panel"><h2>Portfolio Composition</h2>'+composition_panel(model['composition'])+' </section><h2>Five largest valued stock/fund holdings</h2><p class="holding-description">Weights are shares of valued stock/fund assets, without look-through. Thin bars show size relative to the largest holding; use the percentages for allocation. '+text(HOLDING_EXPLANATION)+'</p>'+holding_cards(snap['top_holdings']))
-    parts.append('<details><summary>See Top 10 holdings</summary>'+table_html(snap['top_holdings'])+'</details><details><summary>All current stock/fund holdings</summary>'+table_html(model['holdings'],True)+'</details><p class="muted">Closed and derecognized positions are excluded. Unpriced positions are not assigned zero. Performance coverage qualifies each open-position return.</p><section class="observations"><h2>What Stands Out?</h2><ul>'+''.join('<li>'+text(s)+'</li>' for s in model['insights'])+'</ul></section><h2>Data health and coverage</h2>')
+    parts.append('<details><summary>See Top 10 holdings</summary>'+table_html(snap['top_holdings'])+'</details><details><summary>All current stock/fund holdings</summary>'+table_html(model['holdings'],True)+'</details><p class="muted">Closed and derecognized positions are excluded. Unpriced positions are not assigned zero. Performance coverage qualifies each open-position return.</p>'+intelligence_html(model)+'<section class="observations"><h2>What Stands Out?</h2><ul>'+''.join('<li>'+text(s)+'</li>' for s in model['insights'])+'</ul></section><h2>Data health and coverage</h2>')
 
     parts.append('<div class="warning"><ul>'+''.join('<li>'+text(s)+'</li>' for s in model['issues'])+'</ul></div>' if model['issues'] else '<p>No blocking issues in the tracked analytical scope.</p>')
     parts.append('<p class="scope-note">'+text(model['report_status']['quality'])+' · '+text(model['report_status']['accounting'])+'<br>'+text(model['valuation_summary'])+'</p>')

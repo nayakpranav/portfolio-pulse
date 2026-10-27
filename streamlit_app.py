@@ -11,7 +11,7 @@ if getattr(_charts,'CHART_SCHEMA_VERSION',0)!=2:importlib.reload(_charts)
 import pulse.reporting as _reporting
 if getattr(_reporting,'PRESENTATION_SCHEMA_VERSION',0)!=4:importlib.reload(_reporting)
 import pulse.composition as _composition
-if getattr(_composition,'COMPOSITION_SCHEMA_VERSION',0)!=1:importlib.reload(_composition)
+if getattr(_composition,'COMPOSITION_SCHEMA_VERSION',0)!=2:importlib.reload(_composition)
 from pulse.benchmarks import PRESETS, validate_ticker
 from pulse.charts import wealth_range, benchmark_alias
 from pulse.design import STREAMLIT_CSS
@@ -33,12 +33,12 @@ if getattr(_synthetic,'SYNTHETIC_SCHEMA_VERSION',0)!=2:importlib.reload(_synthet
 from pulse.synthetic import fixture
 import pulse.adapter as _adapter
 import pulse.pdf as _pdf
-if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=9:importlib.reload(_adapter)
+if getattr(_adapter,'MODEL_SCHEMA_VERSION',0)!=10:importlib.reload(_adapter)
 if getattr(_pdf,'PDF_SCHEMA_VERSION',0)!=11:importlib.reload(_pdf)
 from pulse.adapter import prepare
 from pulse.pdf import summary_pdf
 import pulse.html_report as _html_report
-if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=10:importlib.reload(_html_report)
+if getattr(_html_report,'HTML_SCHEMA_VERSION',0)!=11:importlib.reload(_html_report)
 from pulse.html_report import html_report, HTML_SCHEMA_VERSION
 from pulse.reporting import HOLDING_CSS, holding_cards, table_frame, HOLDING_EXPLANATION
 from pulse.composition import COMPOSITION_CSS, composition_panel
@@ -99,7 +99,7 @@ with st.sidebar:
     demo = st.button('Try with Demo Portfolio',type='secondary' if upload_enabled else 'primary',use_container_width=True,disabled=selection=='Custom Yahoo Finance ticker')
     if st.button('Clear session results',use_container_width=True):
         for key in list(st.session_state):
-            if key in {'model','pdf','html','export_schema','input_digest','twr_period','performance_view','start_demo','analysis_scope','market_replay','workflow_timings'} or key.startswith(('event_','manual_')):
+            if key in {'model','pdf','html','export_schema','input_digest','twr_period','performance_view','start_demo','analysis_scope','market_replay','workflow_timings'} or key.startswith(('event_','manual_','intelligence_')):
                 st.session_state.pop(key,None)
         st.session_state.pop(f'upload_{upload_epoch}',None)
         st.session_state['upload_epoch'] = upload_epoch+1
@@ -328,28 +328,41 @@ if view=='Drawdown (%)':
     risk=model['drawdown']
     if risk['available']:
         risk_data=pd.DataFrame(risk['series'])
-        lower=min(-1,risk['maximum']*1.15)
+        comparison=model['intelligence']['benchmark_risk']
+        lower=min(-1,risk['maximum']*1.15,(comparison['maximum'] or 0)*1.15)
         base=alt.Chart(risk_data).encode(x=alt.X('date:T',title='Date',axis=alt.Axis(format='%b %Y',tickCount=6)),y=alt.Y('drawdown_pct:Q',title='TWR drawdown (%)',scale=alt.Scale(domain=[lower,0],nice=False)),tooltip=[alt.Tooltip('date:T',title='Date'),alt.Tooltip('drawdown_pct:Q',title='Drawdown (%)',format='.2f')])
         chart=base.mark_area(color='#42cbea',opacity=.18)+base.mark_line(color='#42cbea',strokeWidth=2.5)+alt.Chart(pd.DataFrame({'zero':[0]})).mark_rule(color='#91a7bc').encode(y='zero:Q')
+        if comparison['available']:
+            benchmark_risk_data=pd.DataFrame(comparison['series'])
+            chart+=alt.Chart(benchmark_risk_data).mark_line(color='#397df5',strokeDash=[7,4],strokeWidth=2).encode(x='date:T',y='benchmark_drawdown_pct:Q',tooltip=[alt.Tooltip('date:T'),alt.Tooltip('benchmark_drawdown_pct:Q',title='Benchmark drawdown (%)',format='.2f')])
         st.altair_chart(chart.properties(height=330),use_container_width=True)
         st.write(risk_summary(risk))
+        if comparison['available']:
+            st.caption(f"Cyan: stock/fund TWR · dashed blue: benchmark EUR adjusted returns. Benchmark max: {comparison['maximum']:.2f}% · current: {comparison['current']:.2f}%")
+        st.caption(comparison['note'])
         st.caption(f"Latest observation: {risk['date']:%d %b %Y} · {risk['scope']}")
     else:st.info(risk_summary(risk))
     st.caption(risk['note'])
 elif not nav.empty:
     columns = {'stockfund_value_eur':'Actual stock/fund wealth'}
     if model['by_key']['benchmark'].value is not None:columns['benchmark_pme_value_eur']=benchmark_alias(model)
-    chart_data = nav[['date',*columns]].rename(columns=columns).melt('date',var_name='Series',value_name='Value')
+    capital=model['intelligence']['capital'];wealth_data=nav.copy()
+    if capital['available'] and st.checkbox('Cumulative net stock/fund capital invested',key='intelligence_capital'):
+        wealth_data['capital_eur']=[r['capital_eur'] for r in capital['series']]
+        columns['capital_eur']='Cumulative net stock/fund capital invested'
+        st.caption(capital['note'])
+    chart_data = wealth_data[['date',*columns]].rename(columns=columns).melt('date',var_name='Series',value_name='Value')
     low, high = wealth_range(chart_data['Value'])
     st.caption('Wealth in EUR · padded vertical range' + (' · axis does not start at zero' if low != 0 else ''))
     names=list(columns.values())
+    styles={'stockfund_value_eur':('#42cbea',[1,0],3),'benchmark_pme_value_eur':('#397df5',[7,4],2.3),'capital_eur':('#91a7bc',[3,4],1.6)}
     chart = alt.Chart(chart_data).mark_line().encode(x=alt.X('date:T',title='Date',axis=alt.Axis(format='%b %Y',tickCount=6)),
-        y=alt.Y('Value:Q',title='Wealth (EUR)',scale=alt.Scale(domain=[low,high],zero=False,nice=False)),color=alt.Color('Series:N',title=None,scale=alt.Scale(domain=names,range=['#42cbea','#397df5']),legend=alt.Legend(orient='top',direction='vertical',columns=1,labelLimit=320)),
-        strokeDash=alt.StrokeDash('Series:N',scale=alt.Scale(domain=names,range=[[1,0],[7,4]]),legend=None),
-        size=alt.Size('Series:N',scale=alt.Scale(domain=names,range=[3,2.3]),legend=None),
+        y=alt.Y('Value:Q',title='Wealth (EUR)',scale=alt.Scale(domain=[low,high],zero=False,nice=False)),color=alt.Color('Series:N',title=None,scale=alt.Scale(domain=names,range=[styles[c][0] for c in columns]),legend=alt.Legend(orient='top',direction='vertical',columns=1,labelLimit=320)),
+        strokeDash=alt.StrokeDash('Series:N',scale=alt.Scale(domain=names,range=[styles[c][1] for c in columns]),legend=None),
+        size=alt.Size('Series:N',scale=alt.Scale(domain=names,range=[styles[c][2] for c in columns]),legend=None),
         tooltip=['date:T','Series:N',alt.Tooltip('Value:Q',format=',.2f')]).properties(height=330)
     st.altair_chart(chart,use_container_width=True)
-    last=nav.iloc[-1]
+    last=wealth_data.iloc[-1]
     st.caption('Endpoint wealth · '+ ' · '.join(f"{name}: €{float(last[col]):,.2f}" for col,name in columns.items() if pd.notna(last[col])))
 else:st.info('Unavailable — data requires review. Historical stock/fund wealth cannot be presented reliably.')
 with st.expander('Benchmark identity and comparison'):
@@ -398,6 +411,10 @@ with st.expander('See Top 10 holdings'):
     st.caption('Closed and derecognized positions are excluded. Unpriced holdings are not assigned zero.')
 with st.expander('All current stock/fund holdings'):
     st.dataframe(table_frame(model['holdings'],True),hide_index=True,use_container_width=True)
+
+if st.checkbox('Show Portfolio Intelligence',key='intelligence_show'):
+    from pulse.intelligence_view import streamlit_intelligence
+    streamlit_intelligence(model)
 
 st.markdown('### What Stands Out?')
 for insight in model['insights']:

@@ -11,7 +11,7 @@ import urllib.request
 import webbrowser
 
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parents[1]))
-VERSION='1.0.13'
+VERSION='1.0.14-dev'
 
 def free_port():
     with socket.socket() as sock:
@@ -124,9 +124,11 @@ def main():
         from pulse.pdf import summary_pdf
         from pulse.html_report import html_report
         data,prices=fixture();model=prepare(run_analysis(data,prices=prices))
+        assert set(model['intelligence'])=={'attribution','capital','benchmark_risk','underlying','income'}
+        assert b'Portfolio Intelligence' in html_report(model)
         report={'ssl_context_verified':True,'app_chart_import':bool(altair.__version__),'synthetic_worker':True,'metrics':len(model['metrics']),'pdf':summary_pdf(model).startswith(b'%PDF'),'html':html_report(model).startswith(b'<!doctype html>'),'personal_mode':personal_environment()['FOLIOLENS_MODE']=='personal',
                 'canonical_drawdown':model['drawdown']['available'],'forward_dividends':model['forward_dividends']['available'] and model['forward_dividends']['amount']==44,
-                'offline_chart_toggle':b'data-view="drawdown"' in html_report(model)}
+                'offline_chart_toggle':b'data-view="drawdown"' in html_report(model),'portfolio_intelligence':True}
         data,prices=fixture('open_derivatives')
         scoped=prepare(run_analysis(data,prices=prices),analysis_scope='stocks_funds')
         report.update(stock_fund_scope_metrics=sum(m.value is not None for m in scoped['metrics']),

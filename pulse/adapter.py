@@ -6,7 +6,7 @@ import pandas as pd
 from pulse.core import build_snapshot_data
 from pulse.scopes import availability, blocker_message
 
-MODEL_SCHEMA_VERSION = 9
+MODEL_SCHEMA_VERSION = 10
 
 @dataclass(frozen=True)
 class Metric:
@@ -220,10 +220,13 @@ def prepare(result, report_date=None, analysis_scope=None):
     scope_label='Unaffected stocks & funds (partial)' if stock_scope and partial else 'Stocks & funds' if stock_scope else 'Full portfolio'
     from pulse.status import report_status
     status=report_status(dependencies,full_totals,analysis_scope,scope_label,issues,income_blocked)
-    return dict(report_status=status,manual_derivatives=manual,valuation_summary=valuation_summary(dependencies,manual),history_evidence=historical_evidence(result),dividend_evidence=dividend_evidence(complete_result),drawdown=risk,forward_dividends=forecast,composition=composition_data,metrics=metrics,by_key=by_key,snapshot=snapshot,nav=nav,issues=list(dict.fromkeys(issues)),
+    model=dict(report_status=status,manual_derivatives=manual,valuation_summary=valuation_summary(dependencies,manual),history_evidence=historical_evidence(result),dividend_evidence=dividend_evidence(complete_result),drawdown=risk,forward_dividends=forecast,composition=composition_data,metrics=metrics,by_key=by_key,snapshot=snapshot,nav=nav,issues=list(dict.fromkeys(issues)),
                 health='Review required' if blocked or income_blocked else 'Partial' if issues else 'Complete',
                 insights=insights[:5],periods=periods,raw=complete_result,valuation_missing=missing,
                 analysis_scope=analysis_scope,scope_label=scope_label,
                 excluded_securities=partial['excluded'] if partial else [],
                 returns_scope_label='Unaffected stocks & funds (partial)' if partial else 'Stocks & funds',
                 dependencies=dependencies,full_totals=full_totals,holdings=holdings,model_schema_version=MODEL_SCHEMA_VERSION)
+    from pulse.intelligence import build_intelligence
+    model['intelligence']=build_intelligence(model,result)
+    return model

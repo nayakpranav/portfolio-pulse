@@ -12,7 +12,7 @@ def finite(value):
 
 def composition(result,as_of,accounting_valid=True,partial=False):
     out=dict(active_count=None,valued_count=0,top_count=0,total_value=None,top_pct=None,remaining_pct=None,
-             stock_pct=None,fund_pct=None,unclassified_pct=None,partial=partial,as_of=str(as_of))
+             stock_pct=None,fund_pct=None,unclassified_pct=None,effective_holdings=None,partial=partial,as_of=str(as_of))
     if not accounting_valid:
         return dict(out,note='Active positions and allocations require resolved stock/fund accounting.')
     diagnostics={}
@@ -44,6 +44,8 @@ def composition(result,as_of,accounting_valid=True,partial=False):
     out['valued_count']=len(values);out['top_count']=min(5,len(values));total=fsum(values)
     if total>0:
         out.update(total_value=total,top_pct=fsum(sorted(values,reverse=True)[:5])/total*100)
+        if out['valued_count']==out['active_count']:
+            out['effective_holdings']=1/fsum((v/total)**2 for v in values)
         out['remaining_pct']=100-out['top_pct']
         for kind,key in [('STOCK','stock_pct'),('FUND','fund_pct'),('UNCLASSIFIED','unclassified_pct')]:out[key]=fsum(types[kind])/total*100
     out['note']=f"{out['valued_count']} of {out['active_count']} active positions have reliable dated valuations."
@@ -53,7 +55,7 @@ def composition(result,as_of,accounting_valid=True,partial=False):
     if partial:out['note']='Partial scope: unaffected securities only. '+out['note']
     return out
 
-COMPOSITION_SCHEMA_VERSION=1
+COMPOSITION_SCHEMA_VERSION=2
 
 COMPOSITION_CSS='''.composition{min-width:0}.composition-numbers{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:14px 0 20px}.composition-number{font-size:1.75rem;font-weight:700;color:#a8ebbc;font-variant-numeric:tabular-nums}.composition-label{color:#91a7bc;font-size:.875rem}.composition-bar{height:10px;border-radius:5px;overflow:hidden;display:flex;background:#24415e;margin:10px 0}.composition-segment{height:100%;flex-shrink:0}.composition-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.875rem;margin-bottom:22px;color:#f6f9fd}.composition-note{font-size:.85rem;color:#91a7bc;line-height:1.5;overflow-wrap:anywhere}.composition-key{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}@media(max-width:390px){.composition-numbers{gap:12px}.composition-number{font-size:1.55rem}}'''
 
@@ -71,5 +73,7 @@ def composition_panel(data):
     items=[('Stocks',data['stock_pct'],'#42cbea'),('ETFs/funds',data['fund_pct'],'#a78bfa')]
     if data['unclassified_pct'] is not None and data['unclassified_pct']>0:items.append(('Unclassified',data['unclassified_pct'],'#91a7bc'))
     parts.append(bar(items,'Instrument types · valued stock/fund assets'))
+    effective=data.get('effective_holdings')
+    parts.append('<p class="composition-note"><strong>Effective holdings: '+(f'{effective:.2f}' if effective is not None else 'Unavailable')+'</strong> · 1 / sum of squared unrounded stock/fund value weights. Equal-weight equivalent of nominal concentration, not correlation-adjusted independent bets. Funds are individual securities. Complete dated valuation coverage is required.</p>')
     parts.append('<p class="composition-note">'+escape(data['note'])+'</p><p class="composition-note">Stock/fund instruments only; derivatives excluded. No fund constituent look-through, sector or risk exposure inference. Reliable coverage requires canonical valued status and a verified quote within seven days of '+escape(data['as_of'])+'.</p></div>')
     return ''.join(parts)
