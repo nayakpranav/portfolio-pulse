@@ -80,7 +80,7 @@ def test_html_offline_allowlist_and_private_state_exclusion(report_results):
     # Public security ISINs are intended operational details in All Holdings only.
     assert '<th>ISIN</th>' in html
     parsed=Elements();parsed.feed(html)
-    assert sum(tag=='svg' and 'chart' in a.get('class','').split() for tag,a in parsed.elements)==3
+    assert sum(tag=='svg' and 'chart' in a.get('class','').split() for tag,a in parsed.elements)==3+int(m['intelligence']['capital']['available'])
     assert len([a for tag,a in parsed.elements if 'data-period' in a])==5
     for tag,attrs in parsed.elements:
         assert tag not in {'iframe','object','embed','link','img','form','base'}
@@ -257,7 +257,7 @@ def test_composition_shared_prepared_model_scope_and_reports(kind,report_results
         assert c['stock_pct']+c['fund_pct']+c['unclassified_pct']==pytest.approx(100)
     html=html_report(models[0]).decode()
     assert 'Portfolio Composition' in html and 'data-composition="active"' in html
-    assert html.count('<svg')-html.count('<svg class="holding-trend"')==2+int(models[0]['drawdown']['available']) and raw==before
+    assert html.count('<svg')-html.count('<svg class="holding-trend"')==2+int(models[0]['drawdown']['available'])+int(models[0]['intelligence']['capital']['available']) and raw==before
 
 
 @pytest.mark.parametrize('large',[False,True])

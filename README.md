@@ -17,6 +17,11 @@ The v1.0.5 presentation uses two KPI tiers, prominent holding rankings and a
 consistent navy/cyan/mint identity across dashboard, PDF and offline HTML.
 [Report design and scope](docs/REPORTS.md).
 
+FolioLens Personal v1.0.14 adds optional [Portfolio Intelligence](docs/PORTFOLIO_INTELLIGENCE.md):
+reconciled lifetime profit attribution, nominal effective holdings, qualified
+underlying allocation, capital deployment, benchmark drawdown and income yields.
+It uses existing results without additional market-data requests. The release preserves the canonical engine and the fast manual valuation workflow.
+
 ## Windows one-click personal application
 
 Download the generic Windows portable package from [Releases](https://github.com/nayakpranav/portfolio-pulse/releases), extract it and double-click **Open FolioLens Personal.exe**. No Python installation or terminal commands are needed. The browser opens automatically; use the small launcher window to close the local application. [Windows instructions](docs/WINDOWS_PERSONAL.md).
