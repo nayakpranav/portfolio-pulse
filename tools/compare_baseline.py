@@ -9,8 +9,13 @@ import io
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tarfile
 import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from pulse.adapter import prepare
 from pulse.runner import run_analysis
@@ -19,7 +24,6 @@ from pulse.synthetic import fixture
 BASELINE = 'd631b7c50b22619023de9e820198e39f6b97e6de'
 CASES = ('demo', 'etf_only', 'realized_sales', 'reinvestment', 'unsupported_action',
          'missing_price', 'short_history', 'incomplete_accounting', 'derivatives')
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def common_values(old, new, path=''):
