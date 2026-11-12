@@ -19,7 +19,7 @@ APP_VERSION = "V6.7.8"
 MANIFEST_SCHEMA_VERSION = "1.2.0"
 
 STOCK_FUND_ASSET_CLASSES = {"STOCK", "FUND"}
-CORPORATE_ACTION_TYPES = {"SPLIT", "REVERSE_SPLIT"}
+CORPORATE_ACTION_TYPES = {"SPLIT", "REVERSE_SPLIT", "EXCHANGE"}
 
 CANONICAL_COLUMNS = {
     "date", "datetime", "type", "amount", "name", "symbol", "asset_class",
@@ -134,6 +134,7 @@ def build_transaction_support_matrix(
     df: pd.DataFrame,
     supported_dividend_reinvestment_source_rows: set[int] | None = None,
     supported_worthless_derecognition_source_rows: set[int] | None = None,
+    supported_corporate_action_source_rows: set[int] | None = None,
 ) -> pd.DataFrame:
     """Describe every observed type/category/asset-class combination.
 
@@ -200,10 +201,20 @@ def build_transaction_support_matrix(
                 else "Dividend-reinvestment legs are incomplete or ambiguous; quantity and basis mutation rejected."
             )
         elif typ in CORPORATE_ACTION_TYPES and asset in STOCK_FUND_ASSET_CLASSES:
+            observed = work[
+                work["type_norm"].eq(typ) & work["asset_class_clean"].eq(asset)
+                & work["category"].eq(row.get("category", ""))
+            ]
+            sources = set(pd.to_numeric(observed.get("source_row", pd.Series(dtype=float)), errors="coerce").dropna().astype(int))
+            validated = (
+                bool(sources) and sources.issubset(supported_corporate_action_source_rows)
+                if supported_corporate_action_source_rows is not None else typ != "EXCHANGE"
+            )
             normalized = "Corporate action"
-            investment = "SECURITY_LINEAGE_AND_FIFO"
-            cash = "ZERO_UNLESS_EXPLICIT_CASH_ROW"
-            notes = "Must be consumed exactly once by corporate-action normalization."
+            investment = "SECURITY_LINEAGE_AND_FIFO" if validated else "BLOCKED_PENDING_CLASSIFICATION"
+            cash = "ZERO_NONCASH_CONVERSION" if validated else "RETAINED_DIAGNOSTIC"
+            supported, review, blocking = validated, not validated, not validated
+            notes = "Validated non-cash corporate action consumed once; basis conserved." if validated else "Unresolved corporate action; inspect corporate-action audit before resolving quotations."
         elif typ == "WORTHLESS_DERECOGNITION" and asset in STOCK_FUND_ASSET_CLASSES:
             same_type = work[
                 work["type_norm"].astype(str).str.upper().str.strip().eq(typ)
@@ -333,13 +344,15 @@ CORPORATE_AUDIT_COLUMNS = [
 def normalize_corporate_actions(
     trades: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame, set[int]]:
-    """Normalize stock/fund splits into auditable economic-lineage events.
+    """Normalize evidenced non-cash actions into the existing FIFO lineage.
 
     Trade Republic represents an ISIN-changing reverse split as two rows: a
     full negative quantity on the obsolete ISIN and a positive destination
     quantity on the new ISIN. This function pairs such rows only when the same
     action timestamp has exactly one negative and one positive leg. Ambiguous
-    rows remain explicit BLOCKING events.
+    rows remain explicit BLOCKING events. EXCHANGE accepts only an unambiguous
+    one-for-one full-position replacement; a changed quantity without an
+    explicit split/reverse-split treatment does not establish basis continuity.
     """
     if trades is None or trades.empty:
         return trades.copy() if trades is not None else pd.DataFrame(), pd.DataFrame(columns=CORPORATE_AUDIT_COLUMNS), set()
@@ -350,6 +363,7 @@ def normalize_corporate_actions(
     out["corporate_action_id"] = ""
     out["corporate_action_type"] = ""
     out["corporate_action_factor"] = np.nan
+    out["corporate_action_source_quantity"] = np.nan
     out["old_isin"] = ""
     out["new_isin"] = ""
     out["source_row_ids"] = ""
@@ -360,6 +374,34 @@ def normalize_corporate_actions(
     audit_rows: list[dict[str, Any]] = []
     consumed: set[int] = set()
     drop_indices: set[Any] = set()
+    balance_adjustments: list[tuple[str, str, str, float]] = []
+
+    def scope(row: pd.Series) -> tuple[str, str]:
+        return str(row.get("account_type", "")), str(row.get("asset_class_clean", ""))
+
+    def balance_before(row: pd.Series, source_limit: int) -> float:
+        time = pd.to_datetime(row.get("event_datetime"), errors="coerce")
+        times = pd.to_datetime(out["event_datetime"], errors="coerce")
+        earlier = times.lt(time) | (times.eq(time) & out["source_row"].lt(source_limit))
+        selected = out["raw_isin"].eq(str(row["raw_isin"])) & earlier
+        selected &= out["type_norm"].isin({"BUY", "SELL", "DIVIDEND_REINVESTMENT", "WORTHLESS_DERECOGNITION"})
+        account, asset = scope(row)
+        selected &= out["asset_class_clean"].eq(asset)
+        if "account_type" in out:
+            selected &= out["account_type"].astype(str).eq(account)
+        base = pd.to_numeric(out.loc[selected, "signed_quantity"], errors="coerce").sum()
+        return float(base) + sum(delta for a, c, isin, delta in balance_adjustments if (a, c, isin) == (account, asset, str(row["raw_isin"])))
+
+    def cash_error(group: pd.DataFrame) -> str:
+        for column in ("amount", "original_amount", "fee", "tax", "fee_paid_eur", "tax_paid_eur"):
+            if column not in group:
+                continue
+            raw = group[column]
+            values = pd.to_numeric(raw, errors="coerce")
+            present = raw.notna() & raw.astype(str).str.strip().ne("")
+            if (present & (values.isna() | ~np.isfinite(values) | values.abs().gt(1e-10))).any():
+                return f"Nonzero or invalid {column}; obtain broker cash/fee/tax treatment before classifying."
+        return ""
 
     action_rows = out[out["type_norm"].isin(CORPORATE_ACTION_TYPES)].copy()
     action_rows["_event_key"] = pd.Series(index=action_rows.index, dtype="string")
@@ -372,13 +414,50 @@ def normalize_corporate_actions(
             ) + "|" + str(row.get("type_norm", "")),
             axis=1,
         )
+    action_rows["_account"] = action_rows.get("account_type", pd.Series("", index=action_rows.index)).fillna("").astype(str)
+    action_rows["_asset"] = action_rows["asset_class_clean"]
 
-    for event_key, group in action_rows.groupby("_event_key", sort=True):
+    # At an equal timestamp preserve the broker's source order, rather than
+    # alphabetically processing EXCHANGE before an earlier REVERSE_SPLIT.
+    groups = list(action_rows.groupby(["_event_key", "_account", "_asset"], sort=False))
+    groups.sort(key=lambda item: (
+        str(item[1]["event_datetime"].iloc[0]), int(item[1]["source_row"].min())
+    ))
+    for (event_key, _, _), group in groups:
         typ = str(group["type_norm"].iloc[0])
         negative = group[pd.to_numeric(group["signed_quantity"], errors="coerce") < -1e-12]
         positive = group[pd.to_numeric(group["signed_quantity"], errors="coerce") > 1e-12]
 
-        if typ == "REVERSE_SPLIT" and len(negative) == 1 and len(positive) == 1 and len(group) == 2:
+        pair_error = cash_error(group)
+        paired = len(negative) == 1 and len(positive) == 1 and len(group) == 2
+        if paired:
+            old, new = negative.iloc[0], positive.iloc[0]
+            old_qty, new_qty = abs(float(old["signed_quantity"])), float(new["signed_quantity"])
+            factor = new_qty / old_qty
+            source_limit = int(group["source_row"].min())
+            expected = balance_before(old, source_limit)
+            old_isin, new_isin = str(old["raw_isin"]), str(new["raw_isin"])
+            if not pair_error and not (np.isfinite(old_qty) and np.isfinite(new_qty) and np.isfinite(factor) and factor > 0):
+                pair_error = "Non-finite or invalid conversion quantities; obtain broker quantity evidence."
+            if not pair_error and (not old_isin or not new_isin or scope(old)[1] not in STOCK_FUND_ASSET_CLASSES):
+                pair_error = "Missing security identity or unsupported asset class."
+            if not pair_error and (pd.isna(pd.to_datetime(old.get("event_datetime"), errors="coerce")) or pd.to_datetime(old.get("event_date")) != pd.to_datetime(new.get("event_date"))):
+                pair_error = "Exact matching timestamps and effective dates are required."
+            if not pair_error and not np.isclose(expected, old_qty, rtol=1e-6, atol=1e-8):
+                pair_error = f"Source leg {old_qty:g} does not close pre-action quantity {expected:g}; reconcile broker quantities."
+            if not pair_error and old_isin != new_isin and (abs(balance_before(new, source_limit)) > 1e-8 or old_isin in directed or new_isin in directed):
+                pair_error = "Destination already holds units or identity path is cyclic/obsolete; explicit economic treatment required."
+            if not pair_error and typ == "REVERSE_SPLIT" and not (0 < factor < 1):
+                pair_error = "Reverse-split quantity ratio must be below one."
+            if not pair_error and typ == "SPLIT" and not factor > 1:
+                pair_error = "Forward-split quantity ratio must exceed one."
+            if not pair_error and typ == "EXCHANGE":
+                if not group.get("category", pd.Series("", index=group.index)).astype(str).str.upper().eq("CORPORATE_ACTION").all():
+                    pair_error = "EXCHANGE requires broker CORPORATE_ACTION category."
+                elif not np.isclose(factor, 1.0, rtol=0, atol=1e-10):
+                    pair_error = "Non-one-for-one EXCHANGE requires explicit conversion/economic evidence; not assumed to be an identity migration."
+
+        if paired and not pair_error:
             old_index, old = next(iter(negative.iterrows()))
             new_index, new = next(iter(positive.iterrows()))
             old_qty = abs(float(old["signed_quantity"]))
@@ -389,8 +468,10 @@ def normalize_corporate_actions(
             old_source = int(old.get("source_row"))
             new_source = int(new.get("source_row"))
             action_id = "CA:" + sha256(f"{event_key}|{old_source}|{new_source}".encode("utf-8")).hexdigest()[:16]
-            valid = bool(old_isin and new_isin and np.isfinite(factor) and 0 < factor < 1)
-            action_type = "REVERSE_SPLIT_ISIN_MIGRATION" if old_isin != new_isin else "REVERSE_SPLIT_SAME_ISIN"
+            valid = bool(old_isin and new_isin and np.isfinite(factor) and factor > 0)
+            action_type = typ + ("_ISIN_MIGRATION" if old_isin != new_isin else "_SAME_ISIN")
+            if typ == "EXCHANGE":
+                factor = 1.0
             status = "PASS" if valid else "BLOCKING"
             warning = "" if valid else "Reverse-split pair has invalid identifiers or ratio."
             source_rows = f"{old_source};{new_source}"
@@ -402,6 +483,7 @@ def normalize_corporate_actions(
             out.loc[old_index, "corporate_action_id"] = action_id
             out.loc[old_index, "corporate_action_type"] = action_type
             out.loc[old_index, "corporate_action_factor"] = factor
+            out.loc[old_index, "corporate_action_source_quantity"] = old_qty
             out.loc[old_index, "old_isin"] = old_isin
             out.loc[old_index, "new_isin"] = new_isin
             out.loc[old_index, "source_row_ids"] = source_rows
@@ -411,6 +493,8 @@ def normalize_corporate_actions(
             if valid and old_isin != new_isin:
                 uf.union(old_isin, new_isin)
                 directed[old_isin] = new_isin
+            account, asset = scope(old)
+            balance_adjustments.extend([(account, asset, old_isin, -old_qty), (account, asset, new_isin, new_qty)])
 
             audit_rows.append({
                 "action_id": action_id,
@@ -441,23 +525,39 @@ def normalize_corporate_actions(
             })
             continue
 
-        if typ == "SPLIT" and len(group) == 1 and len(positive) == 1:
+        single_rename = (
+            typ == "EXCHANGE" and len(group) == 1
+            and pd.to_numeric(group["signed_quantity"], errors="coerce").eq(0).all()
+            and pd.to_numeric(group.get("shares", group["signed_quantity"]), errors="coerce").eq(0).all()
+            and group.get("category", pd.Series("", index=group.index)).eq("CORPORATE_ACTION").all()
+            and bool(str(group.iloc[0].get("raw_isin", "")))
+            and bool(str(group.iloc[0].get("security_name", "")).strip())
+            and pd.notna(pd.to_datetime(group.iloc[0].get("event_datetime"), errors="coerce"))
+            and balance_before(group.iloc[0], int(group.iloc[0]["source_row"])) > 1e-8
+        )
+        if ((typ == "SPLIT" and len(group) == 1 and len(positive) == 1) or single_rename) and not pair_error:
             index, row = next(iter(group.iterrows()))
             source = int(row.get("source_row"))
             isin = str(row.get("raw_isin", ""))
             action_id = "CA:" + sha256(f"{event_key}|{source}".encode("utf-8")).hexdigest()[:16]
             out.loc[index, "corporate_action_id"] = action_id
-            out.loc[index, "corporate_action_type"] = "FORWARD_SPLIT_SAME_ISIN"
+            action_type = "NAME_CHANGE_SAME_ISIN" if single_rename else "FORWARD_SPLIT_SAME_ISIN"
+            out.loc[index, "type_norm"] = "SPLIT"
+            out.loc[index, "corporate_action_type"] = action_type
+            if single_rename:
+                out.loc[index, "corporate_action_factor"] = 1.0
             out.loc[index, "old_isin"] = isin
             out.loc[index, "new_isin"] = isin
             out.loc[index, "source_row_ids"] = str(source)
             out.loc[index, "corporate_action_status"] = "PASS"
             consumed.add(source)
+            account, asset = scope(row)
+            balance_adjustments.append((account, asset, isin, float(row["signed_quantity"])))
             audit_rows.append({
                 "action_id": action_id,
                 "event_date": row.get("event_date"),
                 "source_row_ids": str(source),
-                "corporate_action_type": "FORWARD_SPLIT_SAME_ISIN",
+                "corporate_action_type": action_type,
                 "old_name": row.get("security_name", ""),
                 "new_name": row.get("security_name", ""),
                 "old_isin": isin,
@@ -474,7 +574,7 @@ def normalize_corporate_actions(
                 "canonical_instrument_id": "",
                 "current_isin": isin,
                 "historical_isin_aliases": isin,
-                "resolution_method": "SAME_ISIN_POSITIVE_QUANTITY_DELTA",
+                "resolution_method": "SAME_ISIN_ZERO_QUANTITY_METADATA" if single_rename else "SAME_ISIN_POSITIVE_QUANTITY_DELTA",
                 "validation_status": "PASS",
                 "realized_pl_caused_eur": 0.0,
                 "investment_cash_flow_caused_eur": 0.0,
@@ -501,7 +601,8 @@ def normalize_corporate_actions(
                 "action_id": action_id, "event_date": row.get("event_date"),
                 "source_row_ids": str(source), "corporate_action_type": typ,
                 "old_name": row.get("security_name", ""), "new_name": "",
-                "old_isin": isin, "new_isin": "", "quantity_before": np.nan,
+                "old_isin": str(negative.iloc[0]["raw_isin"]) if paired else isin,
+                "new_isin": str(positive.iloc[0]["raw_isin"]) if paired else "", "quantity_before": np.nan,
                 "source_quantity_change": row.get("signed_quantity", np.nan),
                 "destination_quantity": np.nan, "quantity_after": np.nan,
                 "derived_or_declared_ratio": np.nan,
@@ -511,7 +612,7 @@ def normalize_corporate_actions(
                 "historical_isin_aliases": isin, "resolution_method": "AMBIGUOUS_OR_UNPAIRED",
                 "validation_status": "BLOCKING", "realized_pl_caused_eur": 0.0,
                 "investment_cash_flow_caused_eur": 0.0,
-                "warning_error": "Corporate-action rows could not be paired unambiguously; FIFO mutation rejected.",
+                "warning_error": pair_error or "Corporate-action rows lack a unique same-timestamp source/destination pair; obtain broker conversion evidence. FIFO mutation rejected.",
             })
 
     if drop_indices:
@@ -589,6 +690,10 @@ def annotate_historical_scales(
         & pd.to_numeric(corporate_action_audit["derived_or_declared_ratio"], errors="coerce").gt(0)
     ].copy()
     passed["event_date"] = pd.to_datetime(passed["event_date"], errors="coerce")
+    action_trades = out[out["type_norm"].eq("SPLIT")].set_index("corporate_action_id") if "corporate_action_id" in out else pd.DataFrame()
+    if not action_trades.empty:
+        passed["_time"] = pd.to_datetime(passed["action_id"].map(action_trades["event_datetime"]), errors="coerce")
+        passed["_source"] = pd.to_numeric(passed["action_id"].map(action_trades["source_row"]), errors="coerce")
     for index, trade in out.iterrows():
         if str(trade.get("type_norm", "")) == "SPLIT":
             out.loc[index, "historical_signed_quantity"] = 0.0
@@ -599,6 +704,10 @@ def annotate_historical_scales(
             passed["canonical_instrument_id"].astype(str).eq(lineage)
             & passed["event_date"].ge(trade_date)
         ]
+        if "_time" in future and pd.notna(pd.to_datetime(trade.get("event_datetime"), errors="coerce")):
+            time = pd.to_datetime(trade["event_datetime"])
+            # A purchase after an action on the same day is already in new units.
+            future = future[future["_time"].gt(time) | (future["_time"].eq(time) & future["_source"].gt(float(trade.get("source_row", 0)))) | future["_time"].isna()]
         factor = float(pd.to_numeric(future["derived_or_declared_ratio"], errors="coerce").prod()) if not future.empty else 1.0
         out.loc[index, "historical_quantity_scale"] = factor
         out.loc[index, "historical_signed_quantity"] = float(trade.get("signed_quantity", 0.0)) * factor

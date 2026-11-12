@@ -63,6 +63,7 @@ from security_events import (
 
 from portfolio_core import (
     APP_VERSION,
+    CORPORATE_ACTION_TYPES,
     MANIFEST_SCHEMA_VERSION,
     annotate_historical_scales,
     apply_split_factor_to_lots,
@@ -147,7 +148,7 @@ DIVIDEND_GROWTH_CLIP_HIGH = 0.20
 DIVIDEND_GROWTH_FETCH_SLEEP_SECONDS = 0.15
 
 ASSET_CLASSES_ALLOWED = {"STOCK", "FUND"}
-TRADE_TYPES = {"BUY", "SELL", "SPLIT", "REVERSE_SPLIT", WORTHLESS_DERECOGNITION}
+TRADE_TYPES = {"BUY", "SELL", WORTHLESS_DERECOGNITION} | CORPORATE_ACTION_TYPES
 STOCK_ACQUISITION_TYPES = {"BUY", "DIVIDEND_REINVESTMENT"}
 DIVIDEND_TYPES = {"DIVIDEND", "DISTRIBUTION"}
 PROMO_TYPES_SECURITY_SPECIFIC = {"STOCKPERK", "BENEFITS_SAVEBACK"}
@@ -718,6 +719,7 @@ def classify_for_diagnostics(df):
         if t == "DISTRIBUTION": return "Distribution"
         if t == "SPLIT": return "Split"
         if t == "REVERSE_SPLIT": return "Reverse split / identifier migration"
+        if t == "EXCHANGE": return "Non-cash security exchange / review required"
         if t in {"STOCKPERK", "BENEFITS_SAVEBACK"}: return "Promo / saveback"
         if t == "INTEREST_PAYMENT": return "Interest"
         if "CARD" in t: return "Card payment"
@@ -1289,6 +1291,7 @@ def build_trade_ledger(df, dividend_reinvestments=None):
         if reinvested_trades:
             trades = pd.concat([trades, pd.DataFrame(reinvested_trades)], ignore_index=True, sort=False)
     keep = ["trade_id", "transaction_id", "event_datetime", "event_date", "year", "month", "month_name", "quarter", "year_month", "type_norm", "broker_type_norm", "asset_class_clean", "security_name", "isin", "quantity", "signed_quantity", "trade_price_eur", "amount", "gross_buy_value_eur", "gross_sell_value_eur", "fee_paid_eur", "tax_paid_eur", "net_buy_cash_outflow_eur", "net_sell_cash_inflow_eur", "matched_promo_credit_eur", "funding_source", "acquisition_cost_basis_eur", "user_funded_cost_basis_eur", "currency_clean", "description_clean", "source_row", "inferred_gross_trade_value_eur", "trade_value_inference_flag", "ipo_allocated_fee_eur", "ipo_subscription_net_purchase_eur", "ipo_allocation_flag", "dividend_reinvestment_event_id", "source_row_ids", "known_security_event_id", "tax_treatment_status"]
+    keep += ["category", "account_type", "original_amount", "fee", "tax", "shares"]
     return trades[[c for c in keep if c in trades.columns]].sort_values(["event_datetime", "source_row"]).reset_index(drop=True), promo, allocated_ipo_source_rows
 
 
@@ -1334,9 +1337,13 @@ def fifo_realized_and_positions(trades, corporate_action_audit=None):
                     declared_factor = (quantity_before + split_extra_qty) / quantity_before
                 action_status = "PASS"
                 warning_error = ""
+                expected_source = safe_float(r.get("corporate_action_source_quantity"), np.nan)
                 if not lots or not np.isfinite(declared_factor) or declared_factor <= 0:
                     action_status = "BLOCKING"
                     warning_error = "Corporate action has no matching pre-action FIFO lots or an invalid ratio."
+                elif np.isfinite(expected_source) and not np.isclose(quantity_before, expected_source, rtol=1e-6, atol=1e-8):
+                    action_status = "BLOCKING"
+                    warning_error = "Corporate-action source quantity differs from pre-action FIFO lots; mutation rejected."
                 else:
                     quantities_before = {
                         lot["source_trade_id"]: lot["quantity_remaining"] for lot in lots
@@ -6681,7 +6688,7 @@ def _drawdown_episode_table(nav_series):
     return out.sort_values("max_drawdown_pct").reset_index(drop=True)
 
 
-def build_valuation_diagnostics(holdings, active_derivatives):
+def build_valuation_diagnostics(holdings, active_derivatives, corporate_action_audit=None):
     """Return one actionable valuation record for every active tracked position."""
     rows = []
     stock = holdings[holdings["position_status"].eq("ACTIVE")].copy() if holdings is not None and not holdings.empty else pd.DataFrame()
@@ -6691,6 +6698,17 @@ def build_valuation_diagnostics(holdings, active_derivatives):
         basis = safe_float(row.get("remaining_acquisition_cost_basis_eur"), np.nan)
         resolved = np.isfinite(value)
         quote_currency = str(row.get("live_price_currency", "") or "")
+        action_failure = ""
+        if corporate_action_audit is not None and not corporate_action_audit.empty:
+            aliases = set(str(row.get("historical_isin_aliases", row.get("isin", ""))).split(";"))
+            failed = corporate_action_audit[
+                ~corporate_action_audit["validation_status"].eq("PASS")
+                & (corporate_action_audit["old_isin"].isin(aliases) | corporate_action_audit["new_isin"].isin(aliases))
+            ]
+            action_failure = "; ".join(
+                f"Accounting blocked: {x.old_isin} -> {x.new_isin or 'unresolved destination'} on {x.event_date}: {x.warning_error}"
+                for x in failed.itertuples()
+            )
         rows.append({
             "instrument_type": "STOCK_FUND",
             "security_name": row.get("security_name", ""),
@@ -6703,9 +6721,9 @@ def build_valuation_diagnostics(holdings, active_derivatives):
             "acquisition_basis_eur": basis,
             "basis_share_of_stock_portfolio_pct": basis / total_stock_basis * 100.0 if np.isfinite(basis) and total_stock_basis > 1e-12 else np.nan,
             "valuation_status": "VALUED" if resolved else "BLOCKING",
-            "ticker_resolution_status": row.get("ticker_match_status", ""),
+            "ticker_resolution_status": "BLOCKED_CORPORATE_ACTION" if action_failure and not resolved else row.get("ticker_match_status", ""),
             "live_price_status": row.get("price_status", ""),
-            "failure_reason": "" if resolved else (row.get("price_diagnostic_detail", "") or row.get("price_error", "") or row.get("price_status", "NO_RELIABLE_CURRENT_PRICE")),
+            "failure_reason": action_failure or ("" if resolved else (row.get("price_diagnostic_detail", "") or row.get("price_error", "") or row.get("price_status", "NO_RELIABLE_CURRENT_PRICE"))),
             "attempted_sources": "OPENFIGI;YAHOO_EXACT_ISIN;YAHOO_SEARCH;YAHOO_PRICE_HISTORY",
             "selected_ticker": row.get("yahoo_ticker", ""),
             "exchange": row.get("ticker_matched_exchange", ""),
@@ -7293,6 +7311,38 @@ def build_historical_analytics(
                 except Exception as exc:
                     history_results[ticker] = (_history_empty_frame(), "", "ERROR", str(exc))
 
+    # A successor may expose only post-migration history. Fill earlier gaps
+    # from an evidenced predecessor only when its units equal current units.
+    # Quantity-changing predecessor prices need provider adjustment evidence;
+    # keep the existing explicit lower-confidence fallback in that case.
+    predecessor_histories = {}
+    exchange_actions = trades[trades.get("corporate_action_type", pd.Series("", index=trades.index)).eq("EXCHANGE_ISIN_MIGRATION")]
+    for _, action in exchange_actions.iterrows():
+        isin = str(action["isin"])
+        current = security_map[security_map["isin"].eq(isin)].iloc[0]
+        primary = history_results.get(str(current["ticker"]), (_history_empty_frame(), "", "", ""))[0]
+        cutoff = pd.Timestamp(action["event_date"]).normalize()
+        if not primary.empty and primary["close_native"].dropna().index.min() <= start_date:
+            continue
+        future_actions = trades[trades["isin"].eq(isin) & trades["type_norm"].eq("SPLIT") & trades["event_datetime"].ge(action["event_datetime"])]
+        factors = pd.to_numeric(future_actions["corporate_action_factor"], errors="coerce")
+        if factors.isna().any() or not np.isclose(float(factors.prod()), 1.0, rtol=0, atol=1e-10):
+            continue
+        old_isin = str(action["old_isin"])
+        prior_dates = trades.loc[trades["new_isin"].eq(old_isin) & trades["event_datetime"].lt(action["event_datetime"]), "event_date"]
+        lower = pd.Timestamp(prior_dates.max()).normalize() if not prior_dates.empty else start_date
+        try:
+            match = find_best_yahoo_ticker(old_isin, str(action["raw_security_name"]), str(action["asset_class_clean"]))
+            old_ticker = str(match.get("ticker", "") or "")
+            if not old_ticker or old_ticker == str(current["ticker"]):
+                continue
+            frame, currency, status, error = _fetch_yahoo_history(old_ticker, lower, cutoff)
+            frame = frame[(frame.index >= lower) & (frame.index < cutoff)]
+            predecessor_histories.setdefault(isin, []).append((old_isin, old_ticker, lower, cutoff, frame, currency or match.get("matched_currency", ""), status, error))
+        except Exception:
+            # A failed historical identity lookup must never fabricate a price.
+            predecessor_histories.setdefault(isin, []).append((old_isin, "", lower, cutoff, _history_empty_frame(), "", "LOOKUP_FAILED", "Predecessor historical identity unresolved"))
+
     currencies = set()
     for _, row in security_map.iterrows():
         ticker = str(row.get("ticker", ""))
@@ -7300,6 +7350,11 @@ def build_historical_analytics(
         norm_currency, _ = _normalize_currency_for_history(result_currency or row.get("currency", ""))
         if norm_currency not in {"EUR", "UNKNOWN", ""}:
             currencies.add(norm_currency)
+    for candidates in predecessor_histories.values():
+        for _, _, _, _, _, currency, _, _ in candidates:
+            norm_currency, _ = _normalize_currency_for_history(currency)
+            if norm_currency not in {"EUR", "UNKNOWN", ""}:
+                currencies.add(norm_currency)
     fx_histories = {}
     for currency in sorted(currencies):
         fx_frame, _, fx_status, fx_error = _fetch_yahoo_history(f"{currency}EUR=X", start_date, valuation_date)
@@ -7324,9 +7379,32 @@ def build_historical_analytics(
                 fx_series = pd.to_numeric(fx_series, errors="coerce").reindex(market_close.index.union(fx_series.index)).sort_index().ffill().bfill()
                 market_close = market_close.reindex(fx_series.index) * fx_series
                 market_adjusted = market_adjusted.reindex(fx_series.index) * fx_series
-        external_observed_dates = set(pd.DatetimeIndex(market_close.dropna().index).normalize()) if not market_close.empty else set()
-        market_close = market_close.reindex(calendar).ffill() if not market_close.empty else pd.Series(index=calendar, dtype=float)
-        market_adjusted = market_adjusted.reindex(calendar).ffill() if not market_adjusted.empty else pd.Series(index=calendar, dtype=float)
+        identity_sources = []
+        primary_observed_dates = set(pd.DatetimeIndex(market_close.dropna().index).normalize()) if not market_close.empty else set()
+        predecessor_observed_dates = set()
+        if predecessor_histories.get(isin):
+            market_close = market_close.reindex(calendar).ffill()
+            market_adjusted = market_adjusted.reindex(calendar).ffill()
+        for old_isin, old_ticker, lower, cutoff, frame, old_currency, old_status, old_error in predecessor_histories.get(isin, []):
+            identity_sources.append(f"{old_isin}:{old_ticker}:{lower.date()}..{cutoff.date()}:{old_status}:ONE_FOR_ONE_UNITS")
+            old_currency, old_unit = _normalize_currency_for_history(old_currency)
+            if frame.empty or old_currency == "UNKNOWN":
+                continue
+            old_close, old_adjusted = frame["close_native"] * old_unit, frame["adjusted_close_native"] * old_unit
+            if old_currency != "EUR":
+                fx = fx_histories.get(old_currency, (pd.Series(dtype=float), "", ""))[0]
+                fx = fx.reindex(fx.index.union(old_close.index)).sort_index().ffill()
+                old_close, old_adjusted = old_close * fx.reindex(old_close.index), old_adjusted * fx.reindex(old_adjusted.index)
+            # No backwards fill, cross-identity extrapolation or use after exit.
+            old_close = old_close.reindex(calendar.union(old_close.index)).sort_index().ffill().loc[lambda s: (s.index >= lower) & (s.index < cutoff)]
+            old_adjusted = old_adjusted.reindex(old_close.index).ffill()
+            predecessor_observed_dates.update(old_close.dropna().index.intersection(frame.dropna(subset=["close_native"]).index))
+            market_close = market_close.combine_first(old_close)
+            market_adjusted = market_adjusted.combine_first(old_adjusted)
+        external_observed_dates = primary_observed_dates
+        external_observed_dates.update(predecessor_observed_dates)
+        market_close = market_close.reindex(calendar) if identity_sources else market_close.reindex(calendar).ffill() if not market_close.empty else pd.Series(index=calendar, dtype=float)
+        market_adjusted = market_adjusted.reindex(calendar) if identity_sources else market_adjusted.reindex(calendar).ffill() if not market_adjusted.empty else pd.Series(index=calendar, dtype=float)
         market_quality = pd.Series("UNRESOLVED", index=calendar, dtype=object)
         if market_close.notna().any():
             market_quality.loc[market_close.notna()] = "FORWARD_FILLED_MARKET_PRICE"
@@ -7339,7 +7417,7 @@ def build_historical_analytics(
         final_close = market_close.combine_first(fallback)
         final_adjusted = market_adjusted.combine_first(final_close)
         final_quality = market_quality.where(market_close.notna(), fallback_quality)
-        source = "YAHOO_CLOSE" if market_close.notna().any() else HISTORICAL_PRICE_FALLBACK_LABEL if fallback.notna().any() else "NO_HISTORY"
+        source = ("YAHOO_CLOSE_WITH_PREDECESSOR" if predecessor_observed_dates else "YAHOO_CLOSE") if market_close.notna().any() else HISTORICAL_PRICE_FALLBACK_LABEL if fallback.notna().any() else "NO_HISTORY"
         price_by_isin[isin] = final_close
         adjusted_by_isin[isin] = final_adjusted
         quality_by_isin[isin] = final_quality
@@ -7364,6 +7442,7 @@ def build_historical_analytics(
             "fallback_price_coverage_pct": fallback_count / observations * 100.0,
             "unresolved_price_coverage_pct": int(final_close.isna().sum()) / len(final_close) * 100.0 if len(final_close) else np.nan,
             "error": error,
+            "predecessor_history_provenance": ";".join(identity_sources),
         })
 
     quantity_matrix = pd.DataFrame(index=calendar)
@@ -8021,6 +8100,24 @@ if not worthless_derecognition_events.empty:
             event_totals, left_on="event_id", right_index=True, how="left"
         )
 trades = annotate_historical_scales(trades, corporate_action_audit)
+validated_action_sources = {
+    int(source) for sources in corporate_action_audit.loc[
+        corporate_action_audit["validation_status"].eq("PASS"), "source_row_ids"
+    ] for source in str(sources).split(";") if source
+}
+consumed_corporate_action_source_rows = validated_action_sources | matched_dividend_reinvestment_action_rows
+validated_exchange_mask = df["type_norm"].eq("EXCHANGE") & df["source_row"].isin(validated_action_sources)
+df.loc[validated_exchange_mask, "normalized_category"] = "Non-cash security exchange"
+unresolved_action_mask = df["type_norm"].isin(CORPORATE_ACTION_TYPES) & ~df["source_row"].isin(validated_action_sources)
+df.loc[unresolved_action_mask, "normalized_category"] = "Unknown / manual review"
+df.loc[unresolved_action_mask, "manual_review_flag"] = "REVIEW"
+df.loc[unresolved_action_mask, "include_in_portfolio_model"] = "REVIEW"
+transaction_support_matrix = build_transaction_support_matrix(
+    df,
+    supported_dividend_reinvestment_source_rows=matched_dividend_reinvestment_action_rows,
+    supported_worthless_derecognition_source_rows=matched_worthless_derecognition_source_rows,
+    supported_corporate_action_source_rows=validated_action_sources,
+)
 stage_end(f"{len(holdings):,} stock/fund positions")
 
 stage_start(3, 7, "Resolving stock/fund tickers, live prices and exposure metadata")
@@ -8217,7 +8314,7 @@ derivative_positions, derivative_realized, derivative_open_lots = fifo_derivativ
 derivative_positions, derivative_quote_attempts = enrich_derivatives_with_quote_attempts(derivative_positions)
 active_derivatives = derivative_positions[derivative_positions["position_status"].eq("ACTIVE")].copy() if not derivative_positions.empty else pd.DataFrame()
 closed_derivatives = derivative_positions[derivative_positions["position_status"].eq("CLOSED")].copy() if not derivative_positions.empty else pd.DataFrame()
-valuation_diagnostics = build_valuation_diagnostics(holdings, active_derivatives)
+valuation_diagnostics = build_valuation_diagnostics(holdings, active_derivatives, corporate_action_audit)
 valuation_blockers = (
     valuation_diagnostics[valuation_diagnostics["valuation_status"].eq("BLOCKING")].copy()
     if not valuation_diagnostics.empty else pd.DataFrame()

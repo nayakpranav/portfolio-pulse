@@ -11,13 +11,13 @@ one-page A4 landscape PDF and a self-contained offline HTML report.
 **Release status:** real-data personal analysis implemented; public synthetic demo. The public release defaults
 to a synthetic demo. Public CSV uploads remain disabled pending an approved
 hosted market-data arrangement. Public demo: https://foliolens-tr.streamlit.app/.
-See [release evidence](docs/VALIDATION.md) and [deployment](docs/DEPLOYMENT.md).
+See [release evidence](docs/VALIDATION.md), [v1.0.15 release notes](docs/RELEASE_v1.0.15.md) and [deployment](docs/DEPLOYMENT.md).
 
 The v1.0.5 presentation uses two KPI tiers, prominent holding rankings and a
 consistent navy/cyan/mint identity across dashboard, PDF and offline HTML.
 [Report design and scope](docs/REPORTS.md).
 
-FolioLens Personal v1.0.14 adds optional [Portfolio Intelligence](docs/PORTFOLIO_INTELLIGENCE.md):
+FolioLens Personal v1.0.15 adds validated non-cash exchange lineage and retains v1.0.14's optional [Portfolio Intelligence](docs/PORTFOLIO_INTELLIGENCE.md):
 reconciled lifetime profit attribution, nominal effective holdings, qualified
 underlying allocation, capital deployment, benchmark drawdown and income yields.
 It uses existing results without additional market-data requests. The release preserves the canonical engine and the fast manual valuation workflow.
