@@ -1291,7 +1291,7 @@ def build_trade_ledger(df, dividend_reinvestments=None):
         if reinvested_trades:
             trades = pd.concat([trades, pd.DataFrame(reinvested_trades)], ignore_index=True, sort=False)
     keep = ["trade_id", "transaction_id", "event_datetime", "event_date", "year", "month", "month_name", "quarter", "year_month", "type_norm", "broker_type_norm", "asset_class_clean", "security_name", "isin", "quantity", "signed_quantity", "trade_price_eur", "amount", "gross_buy_value_eur", "gross_sell_value_eur", "fee_paid_eur", "tax_paid_eur", "net_buy_cash_outflow_eur", "net_sell_cash_inflow_eur", "matched_promo_credit_eur", "funding_source", "acquisition_cost_basis_eur", "user_funded_cost_basis_eur", "currency_clean", "description_clean", "source_row", "inferred_gross_trade_value_eur", "trade_value_inference_flag", "ipo_allocated_fee_eur", "ipo_subscription_net_purchase_eur", "ipo_allocation_flag", "dividend_reinvestment_event_id", "source_row_ids", "known_security_event_id", "tax_treatment_status"]
-    keep += ["category", "account_type", "original_amount", "fee", "tax"]
+    keep += ["category", "account_type", "original_amount", "fee", "tax", "shares"]
     return trades[[c for c in keep if c in trades.columns]].sort_values(["event_datetime", "source_row"]).reset_index(drop=True), promo, allocated_ipo_source_rows
 
 

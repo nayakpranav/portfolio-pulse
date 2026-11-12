@@ -138,6 +138,14 @@ def main():
         report['scoped_html']=html_report(scoped).startswith(b'<!doctype html>')
         assert report['html'] and report['scoped_html']
         assert report['stock_fund_scope_metrics']==8 and report['unpriced_derivatives']==7 and report['full_portfolio_partial'] and report['scoped_pdf']
+        data,prices=fixture('noncash_exchange')
+        converted=run_analysis(data,prices=prices)
+        assert converted['accounting_status']=='COMPLETE'
+        assert len(converted['corporate_action_audit'])==2
+        assert all(r['validation_status']=='PASS' for r in converted['corporate_action_audit'])
+        assert converted['holdings'][0]['isin']=='ZZ0000000003'
+        assert abs(converted['holdings'][0]['remaining_acquisition_cost_basis_eur']-221)<1e-9
+        report['noncash_exchange_fifo']=True
         from pulse.event_review import review,remember
         from pulse.private_config import export_digest,personal_defaults
         previous=os.environ.copy()

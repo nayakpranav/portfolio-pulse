@@ -45,6 +45,11 @@ def fixture(kind='demo'):
     rows.append(row('2026-09-30','CUSTOMER_INBOUND',asset='',amount=1,category='CASH'))
     if kind == 'short_history':
         rows = [row('2026-09-29','BUY',shares=11,price=20,amount=-220,fee=-1),rows[-1]]
+    if kind == 'noncash_exchange':
+        rows += [row('2025-06-02','REVERSE_SPLIT',shares=-11,category='CORPORATE_ACTION'),
+                 row('2025-06-02','REVERSE_SPLIT',i=2,shares=1.1,category='CORPORATE_ACTION'),
+                 row('2026-08-03','EXCHANGE',i=2,shares=-1.1,category='CORPORATE_ACTION'),
+                 row('2026-08-03','EXCHANGE',i=3,shares=1.1,category='CORPORATE_ACTION')]
     output = StringIO()
     writer = csv.DictWriter(output, fieldnames=COLUMNS)
     writer.writeheader()
@@ -52,6 +57,8 @@ def fixture(kind='demo'):
         item['transaction_id'] = f'synthetic-{kind}-{index}'
         writer.writerow(item)
     securities = {f'ZZ00000000{i:02d}': {'start':20*i,'end':20*i*(1.15 if i % 2 else .94)} for i in range(1,count+1)}
+    if kind == 'noncash_exchange':
+        securities = {'ZZ0000000003': {'start':200,'end':230}}
     if kind == 'missing_price':
         securities['ZZ0000000001']['missing'] = True
     snapshots={isin:dict(ticker=isin,history=[],calendar={},currency='EUR',history_status='OK',calendar_status='EMPTY_OR_UNAVAILABLE',diagnostic='Explicit fabricated distribution data',retrieved_at='2026-09-30T00:00:00+00:00') for isin in securities}

@@ -19,7 +19,7 @@ APP_VERSION = "V6.7.8"
 MANIFEST_SCHEMA_VERSION = "1.2.0"
 
 STOCK_FUND_ASSET_CLASSES = {"STOCK", "FUND"}
-CORPORATE_ACTION_TYPES = {"SPLIT", "REVERSE_SPLIT"}
+CORPORATE_ACTION_TYPES = {"SPLIT", "REVERSE_SPLIT", "EXCHANGE"}
 
 CANONICAL_COLUMNS = {
     "date", "datetime", "type", "amount", "name", "symbol", "asset_class",
@@ -417,7 +417,13 @@ def normalize_corporate_actions(
     action_rows["_account"] = action_rows.get("account_type", pd.Series("", index=action_rows.index)).fillna("").astype(str)
     action_rows["_asset"] = action_rows["asset_class_clean"]
 
-    for (event_key, _, _), group in action_rows.groupby(["_event_key", "_account", "_asset"], sort=True):
+    # At an equal timestamp preserve the broker's source order, rather than
+    # alphabetically processing EXCHANGE before an earlier REVERSE_SPLIT.
+    groups = list(action_rows.groupby(["_event_key", "_account", "_asset"], sort=False))
+    groups.sort(key=lambda item: (
+        str(item[1]["event_datetime"].iloc[0]), int(item[1]["source_row"].min())
+    ))
+    for (event_key, _, _), group in groups:
         typ = str(group["type_norm"].iloc[0])
         negative = group[pd.to_numeric(group["signed_quantity"], errors="coerce") < -1e-12]
         positive = group[pd.to_numeric(group["signed_quantity"], errors="coerce") > 1e-12]
@@ -522,6 +528,7 @@ def normalize_corporate_actions(
         single_rename = (
             typ == "EXCHANGE" and len(group) == 1
             and pd.to_numeric(group["signed_quantity"], errors="coerce").eq(0).all()
+            and pd.to_numeric(group.get("shares", group["signed_quantity"]), errors="coerce").eq(0).all()
             and group.get("category", pd.Series("", index=group.index)).eq("CORPORATE_ACTION").all()
             and bool(str(group.iloc[0].get("raw_isin", "")))
             and bool(str(group.iloc[0].get("security_name", "")).strip())
